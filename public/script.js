@@ -52,6 +52,11 @@ socket.on("session-created", (code) => {
   document.getElementById("codeContainer").style.display = "block";
   document.getElementById("codeDisplay").innerText = code;
 
+  // Clean up any old status
+  const statusEl = document.getElementById("sendStatus");
+  statusEl.innerText = "Waiting for receiver...";
+  statusEl.style.color = "var(--accent)"; // Default styling
+
   const url = `${window.location.origin}/?join=${code}`;
   document.getElementById("qrcode").innerHTML = "";
   new QRCode(document.getElementById("qrcode"), {
@@ -102,7 +107,15 @@ socket.on("receiver-joined", (receiverSocketId) => {
   // BEFORE sending the next chunk. This prevents 100% of crashes/disconnects.
   function sendNextChunk() {
     if (offset >= senderFile.size) {
-      document.getElementById("sendStatus").innerText = "Transfer Complete! 🎉";
+      const statusEl = document.getElementById("sendStatus");
+      statusEl.innerText = "Transfer Complete! 🎉";
+
+      // Let the user immediately send another file!
+      const sendBtn = document.getElementById("sendBtn");
+      sendBtn.innerText = "Generate New Share Code";
+      sendBtn.disabled = false;
+      sendBtn.style.display = "block";
+
       return;
     }
 
