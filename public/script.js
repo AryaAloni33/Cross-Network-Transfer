@@ -50,8 +50,15 @@ function createSession() {
   // Generate a random 6-character code
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-  // Initialize PeerJS with the generated code as ID
-  peer = new Peer(code);
+  // Initialize PeerJS with the generated code as ID and explicit STUN servers for better connectivity
+  peer = new Peer(code, {
+    config: {
+      'iceServers': [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  });
 
   peer.on('open', (id) => {
     btn.style.display = "none";
@@ -86,7 +93,7 @@ function createSession() {
       statusMsg.style.color = "#2ea043"; // Success color
     }
 
-    conn.on('open', () => {
+    const startTransfer = () => {
       // Tell the receiver the file name and size before sending chunks
       conn.send({
         type: 'metadata',
@@ -95,7 +102,13 @@ function createSession() {
       });
 
       sendFile();
-    });
+    };
+
+    if (conn.open) {
+      startTransfer();
+    } else {
+      conn.on('open', startTransfer);
+    }
   });
 
   peer.on('error', (err) => {
@@ -117,12 +130,21 @@ function joinSession() {
   btn.innerText = "Connecting...";
   btn.disabled = true;
 
-  // Initialize receiving peer
-  peer = new Peer();
+  // Initialize receiving peer with STUN servers
+  peer = new Peer({
+    config: {
+      'iceServers': [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  });
 
   peer.on('open', () => {
     // Connect to the sender's Peer ID (the share code)
-    conn = peer.connect(code);
+    conn = peer.connect(code, {
+      reliable: true
+    });
 
     conn.on('open', () => {
       btn.innerText = "Receiving Data...";
