@@ -1,10 +1,8 @@
-let peer;
-let conn;
+const socket = io();
+
 let file;
 let receivedChunks = [];
 let receivingFileName = "received_file";
-let receivingFileSize = 0;
-let receivedSize = 0;
 
 // Handle URL parameters for instant joining
 window.addEventListener('load', () => {
@@ -14,7 +12,7 @@ window.addEventListener('load', () => {
   if (joinCode) {
     document.getElementById('joinCode').value = joinCode;
     joinSession();
-    // Fallback for smooth auto-scroll to the receive panel on mobile devices
+    // Fallback for smooth auto-scroll to mobile devices
     document.querySelector('.receive-panel').scrollIntoView({ behavior: 'smooth' });
   }
 });
@@ -47,76 +45,31 @@ function createSession() {
   btn.innerText = "Generating Share Code...";
   btn.disabled = true;
 
-  // Generate a random 6-character code
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-  // Initialize PeerJS with the generated code as ID and explicit STUN servers for better connectivity
-  peer = new Peer(code, {
-    config: {
-      'iceServers': [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    }
-  });
-
-  peer.on('open', (id) => {
-    btn.style.display = "none";
-
-    const codeContainer = document.getElementById("codeContainer");
-    codeContainer.style.display = "block";
-    document.getElementById("codeDisplay").innerText = code;
-
-    // Generate QR code for the join link
-    const joinUrl = `${window.location.origin}/?join=${code}`;
-
-    // Clear any existing QR code before generating a new one
-    document.getElementById("qrcode").innerHTML = "";
-
-    new QRCode(document.getElementById("qrcode"), {
-      text: joinUrl,
-      width: 150,
-      height: 150,
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  });
-
-  peer.on('connection', (connection) => {
-    conn = connection;
-    console.log("Receiver connected via PeerJS based WebRTC");
-
-    const statusMsg = document.getElementById("sendStatus");
-    if (statusMsg) {
-      statusMsg.innerHTML = "Receiver connected! Sending file... <span style='animation: pulse 1s infinite;'>📡</span>";
-      statusMsg.style.color = "#2ea043"; // Success color
-    }
-
-    const startTransfer = () => {
-      // Tell the receiver the file name and size before sending chunks
-      conn.send({
-        type: 'metadata',
-        name: file.name,
-        size: file.size
-      });
-
-      sendFile();
-    };
-
-    if (conn.open) {
-      startTransfer();
-    } else {
-      conn.on('open', startTransfer);
-    }
-  });
-
-  peer.on('error', (err) => {
-    alert("Error: " + err.message);
-    btn.innerText = "Generate Share Code";
-    btn.disabled = false;
-  });
+  socket.emit("create-session");
 }
+
+socket.on("session-created", (code) => {
+  const btn = document.getElementById("sendBtn");
+  btn.style.display = "none";
+
+  const codeContainer = document.getElementById("codeContainer");
+  codeContainer.style.display = "block";
+  document.getElementById("codeDisplay").innerText = code;
+
+  // Generate QR code for the join link
+  const joinUrl = `${window.location.origin}/?join=${code}`;
+
+  document.getElementById("qrcode").innerHTML = "";
+
+  new QRCode(document.getElementById("qrcode"), {
+    text: joinUrl,
+    width: 150,
+    height: 150,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.M
+  });
+});
 
 function joinSession() {
   const code = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -130,103 +83,90 @@ function joinSession() {
   btn.innerText = "Connecting...";
   btn.disabled = true;
 
-  // Initialize receiving peer with STUN servers
-  peer = new Peer({
-    config: {
-      'iceServers': [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    }
-  });
-
-  peer.on('open', () => {
-    // Connect to the sender's Peer ID (the share code)
-    conn = peer.connect(code);
-
-    conn.on('open', () => {
-      btn.innerText = "Receiving Data...";
-      console.log("Connected to sender");
-    });
-
-    conn.on('data', (data) => {
-      if (data.type === 'metadata') {
-        // Prepare for file chunks
-        receivingFileName = data.name;
-        receivingFileSize = data.size;
-        receivedChunks = [];
-        receivedSize = 0;
-      } else if (data.type === 'chunk') {
-        // Receive chunk of file
-        receivedChunks.push(data.data);
-        receivedSize += data.data.byteLength;
-
-        if (receivedSize >= receivingFileSize) {
-          finishDownload();
-        }
-      }
-    });
-
-    conn.on('error', (err) => {
-      alert("Connection error: " + err);
-      btn.innerText = "Connect & Receive";
-      btn.disabled = false;
-    });
-  });
-
-  peer.on('error', (err) => {
-    alert("Error joining: Code might be invalid or disconnected.");
-    btn.innerText = "Connect & Receive";
-    btn.disabled = false;
-  });
+  socket.emit("join-session", code);
 }
 
-async function sendFile() {
-  const chunkSize = 65536; // 64KB for optimal WebRTC throughput
-  let offset = 0;
-
-  while (offset < file.size) {
-    // If WebRTC internal buffer is too full, wait a bit so we don't crash the browser
-    if (conn.dataChannel && conn.dataChannel.bufferedAmount > 1024 * 1024) {
-      await new Promise(r => setTimeout(r, 50));
-      continue;
-    }
-
-    const slice = file.slice(offset, offset + chunkSize);
-    const chunkData = await new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.readAsArrayBuffer(slice);
-    });
-
-    conn.send({
-      type: 'chunk',
-      data: chunkData
-    });
-
-    offset += chunkData.byteLength;
-  }
-
+socket.on("receiver-joined", () => {
+  console.log("Receiver connected via Socket.io");
   const statusMsg = document.getElementById("sendStatus");
   if (statusMsg) {
-    statusMsg.innerText = "File transfer complete! 🎉";
-    statusMsg.style.color = "#2ea043";
+    statusMsg.innerHTML = "Receiver connected! Sending file... <span style='animation: pulse 1s infinite;'>📡</span>";
+    statusMsg.style.color = "#2ea043"; // Success color
   }
+
+  // Send metadata first to retain the file name
+  socket.emit("file-metadata", { name: file.name, size: file.size, code: document.getElementById("codeDisplay").innerText });
+
+  sendFile(document.getElementById("codeDisplay").innerText);
+});
+
+socket.on("file-metadata", (metadata) => {
+  receivingFileName = metadata.name;
+  document.getElementById("receiveBtn").innerText = "Receiving Data...";
+  receivedChunks = [];
+});
+
+socket.on('join-failed', () => {
+  alert("Connection error! The room code is invalid or the sender disconnected.");
+  const btn = document.getElementById("receiveBtn");
+  btn.innerText = "Connect & Receive";
+  btn.disabled = false;
+});
+
+function sendFile(code) {
+  const chunkSize = 16384;
+  const reader = new FileReader();
+
+  let offset = 0;
+
+  reader.onload = (e) => {
+    socket.emit("file-chunk", {
+      code: code,
+      chunk: e.target.result,
+    });
+
+    offset += e.target.result.byteLength;
+
+    if (offset < file.size) {
+      readSlice(offset);
+    } else {
+      const statusMsg = document.getElementById("sendStatus");
+      if (statusMsg) {
+        statusMsg.innerText = "File transfer complete! 🎉";
+        statusMsg.style.color = "#2ea043";
+      }
+    }
+  };
+
+  function readSlice(o) {
+    const slice = file.slice(offset, o + chunkSize);
+    reader.readAsArrayBuffer(slice);
+  }
+
+  readSlice(0);
 }
 
-function finishDownload() {
+socket.on("file-chunk", (chunk) => {
+  receivedChunks.push(chunk);
+
+  const btn = document.getElementById("receiveBtn");
+  btn.innerText = "Receiving Data...";
+
+  // We rely on 'transfer-complete' event now to compile the file
+});
+
+socket.on("transfer-complete", () => {
   const blob = new Blob(receivedChunks);
   const url = URL.createObjectURL(blob);
   const link = document.getElementById("downloadLink");
 
   link.href = url;
-
-  // Set accurate download name from metadata
+  // Keep original file name!
   link.download = receivingFileName || "received_file";
 
   document.getElementById("receiveBtn").style.display = "none";
   document.getElementById("downloadContainer").style.display = "block";
-}
+});
 
 // A tiny helper to make typing share codes nicer
 document.getElementById('joinCode').addEventListener('input', function (e) {

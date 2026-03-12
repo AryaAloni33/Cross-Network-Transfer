@@ -28,18 +28,29 @@ io.on("connection", (socket) => {
   socket.on("join-session", (code) => {
     if (sessions[code]) {
       sessions[code].receiver = socket.id;
-
       socket.join(code);
-
       io.to(sessions[code].sender).emit("receiver-joined");
+    } else {
+      socket.emit("join-failed");
     }
+  });
+
+  socket.on("file-metadata", (metadata) => {
+    socket.to(metadata.code).emit("file-metadata", metadata);
   });
 
   socket.on("file-chunk", ({ code, chunk }) => {
     socket.to(code).emit("file-chunk", chunk);
+
+    // Track how many chunks sent per session could be implemented, but simple timeout fallback
+    clearTimeout(sessions[code].timeout);
+    sessions[code].timeout = setTimeout(() => {
+      socket.to(code).emit("transfer-complete");
+    }, 1000);
   });
 });
 
-server.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
