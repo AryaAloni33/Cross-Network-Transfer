@@ -142,9 +142,7 @@ function joinSession() {
 
   peer.on('open', () => {
     // Connect to the sender's Peer ID (the share code)
-    conn = peer.connect(code, {
-      reliable: true
-    });
+    conn = peer.connect(code);
 
     conn.on('open', () => {
       btn.innerText = "Receiving Data...";
@@ -183,37 +181,37 @@ function joinSession() {
   });
 }
 
-function sendFile() {
-  const chunkSize = 16384;
-  const reader = new FileReader();
-
+async function sendFile() {
+  const chunkSize = 65536; // 64KB for optimal WebRTC throughput
   let offset = 0;
 
-  reader.onload = (e) => {
-    conn.send({
-      type: 'chunk',
-      data: e.target.result
+  while (offset < file.size) {
+    // If WebRTC internal buffer is too full, wait a bit so we don't crash the browser
+    if (conn.dataChannel && conn.dataChannel.bufferedAmount > 1024 * 1024) {
+      await new Promise(r => setTimeout(r, 50));
+      continue;
+    }
+
+    const slice = file.slice(offset, offset + chunkSize);
+    const chunkData = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.readAsArrayBuffer(slice);
     });
 
-    offset += e.target.result.byteLength;
+    conn.send({
+      type: 'chunk',
+      data: chunkData
+    });
 
-    if (offset < file.size) {
-      readSlice(offset);
-    } else {
-      const statusMsg = document.getElementById("sendStatus");
-      if (statusMsg) {
-        statusMsg.innerText = "File transfer complete! 🎉";
-        statusMsg.style.color = "#2ea043";
-      }
-    }
-  };
-
-  function readSlice(o) {
-    const slice = file.slice(offset, o + chunkSize);
-    reader.readAsArrayBuffer(slice);
+    offset += chunkData.byteLength;
   }
 
-  readSlice(0);
+  const statusMsg = document.getElementById("sendStatus");
+  if (statusMsg) {
+    statusMsg.innerText = "File transfer complete! 🎉";
+    statusMsg.style.color = "#2ea043";
+  }
 }
 
 function finishDownload() {
