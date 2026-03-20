@@ -3,11 +3,8 @@ name: Daily render ping
 
 on:
   schedule:
-     - cron: '0 8 * * * ' # Runs daily at 8:00 am IST
-     - cron: '45 10 * * * ' # Runs daily at 10.45 am IST
-     - cron: '0 2 * * * ' # Runs daily at 2:00 pm IST
-      
-     
+    - cron: '*/14 * * * *' # Runs every 14 minutes to keep Render awake
+
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
