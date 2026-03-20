@@ -318,6 +318,54 @@ header p {
   gap: 8px;
 }
 
+/* Incoming File Info & Progress */
+.incoming-file-info {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(138, 43, 226, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(138, 43, 226, 0.2);
+}
+
+.file-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  gap: 15px;
+}
+
+.incoming-file-name {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.incoming-file-size {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-inner {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #8a2be2, #c084fc);
+  transition: width 0.2s ease-out;
+  box-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
+}
+
 .download-container {
   margin-top: 1.5rem;
 }

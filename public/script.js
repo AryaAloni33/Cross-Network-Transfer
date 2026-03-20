@@ -3,8 +3,9 @@ const socket = io({
 });
 
 let senderFile;
-let receiverFileName = "received_file";
+let receiverFileName = "";
 let receiverFileSize = 0;
+let receiverFileType = "";
 let receivedBuffers = [];
 let receivedBytes = 0;
 
@@ -96,7 +97,11 @@ socket.on("receiver-joined", (receiverSocketId) => {
   // First, pass the file structure over
   socket.emit("file-meta", {
     target: receiverSocketId,
-    meta: { name: senderFile.name, size: senderFile.size }
+    meta: {
+      name: senderFile.name,
+      size: senderFile.size,
+      type: senderFile.type
+    }
   });
 
   const chunkSize = 256 * 1024; // Massive 256KB chunks for speed
@@ -141,10 +146,29 @@ socket.on("receiver-joined", (receiverSocketId) => {
 socket.on("file-meta", (meta) => {
   receiverFileName = meta.name;
   receiverFileSize = meta.size;
+  receiverFileType = meta.type || "";
   receivedBuffers = [];
   receivedBytes = 0;
-  document.getElementById("receiveBtn").innerText = "0%";
+
+  // Update UI to show what's coming
+  document.getElementById("incomingFileName").innerText = receiverFileName;
+  document.getElementById("incomingFileSize").innerText = formatBytes(receiverFileSize);
+  document.getElementById("incomingFileInfo").style.display = "block";
+  document.getElementById("receiveBtn").innerText = "Starting Transfer...";
+
+  // Pre-set the download link filename
+  const link = document.getElementById("downloadLink");
+  link.download = receiverFileName;
 });
+
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
 
 socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
   receivedBuffers.push(buffer);
@@ -154,6 +178,11 @@ socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
   let percentage = Math.round((receivedBytes / receiverFileSize) * 100);
   document.getElementById("receiveBtn").innerText = `Downloading... ${percentage}%`;
 
+  const progressBar = document.getElementById("progressBarInner");
+  if (progressBar) {
+    progressBar.style.width = `${percentage}%`;
+  }
+
   // Instantly tell the server we got the chunk so it sends the next one immediately
   if (acknowledgeServerCallback) acknowledgeServerCallback();
 
@@ -162,7 +191,7 @@ socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
     document.getElementById("receiveBtn").innerText = "Finalizing File...";
 
     setTimeout(() => {
-      const blob = new Blob(receivedBuffers);
+      const blob = new Blob(receivedBuffers, { type: receiverFileType });
       const url = URL.createObjectURL(blob);
       const link = document.getElementById("downloadLink");
 
@@ -170,6 +199,7 @@ socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
       link.download = receiverFileName;
 
       document.getElementById("receiveBtn").style.display = "none";
+      document.getElementById("incomingFileInfo").style.display = "none";
       document.getElementById("downloadContainer").style.display = "block";
     }, 500); // Tiny pause to let the visual UI breathe
   }
