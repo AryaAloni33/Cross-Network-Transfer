@@ -4,8 +4,8 @@
   --panel-border: rgba(255, 255, 255, 0.1);
   --text-primary: #c9d1d9;
   --text-secondary: #8b949e;
-  --accent: #58a6ff;
-  --accent-hover: #1f6feb;
+  --accent: #1f6feb;
+  --accent-hover: #1158c7;
   --success: #2ea043;
   --blob-1: #58a6ff;
   --blob-2: #8a2be2;
@@ -211,13 +211,13 @@ header p {
   cursor: pointer;
   transition: all 0.3s ease;
   width: 100%;
-  box-shadow: 0 4px 15px rgba(88, 166, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(31, 111, 235, 0.3);
 }
 
 .primary-btn:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(88, 166, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(31, 111, 235, 0.4);
 }
 
 .primary-btn:active {
@@ -279,9 +279,9 @@ header p {
   text-align: center;
   margin-top: 1.5rem;
   padding: 1.5rem;
-  background: rgba(88, 166, 255, 0.08);
+  background: rgba(31, 111, 235, 0.08);
   border-radius: 10px;
-  border: 1px solid rgba(88, 166, 255, 0.2);
+  border: 1px solid rgba(31, 111, 235, 0.2);
 }
 
 .code-label {
@@ -295,7 +295,7 @@ header p {
   font-weight: 700;
   color: #fff;
   letter-spacing: 4px;
-  text-shadow: 0 0 20px rgba(88, 166, 255, 0.5);
+  text-shadow: 0 0 20px rgba(31, 111, 235, 0.5);
 }
 
 .qr-code {
