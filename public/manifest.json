@@ -1,6 +1,6 @@
 {
   "name": "Cross-Network-Transfer",
-  "short_name": "File Transfer",
+  "short_name": "Cross Transfer",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0F172A",
