@@ -3,6 +3,7 @@ const socket = io({
 });
 
 let senderFile;
+let expiryInterval = null; // Countdown timer for session expiry
 let receiverFileName = "";
 let receiverFileSize = 0;
 let receiverFileType = "";
@@ -53,10 +54,55 @@ socket.on("session-created", (code) => {
   document.getElementById("codeContainer").style.display = "block";
   document.getElementById("codeDisplay").innerText = code;
 
-  // Clean up any old status
   const statusEl = document.getElementById("sendStatus");
+  const timerEl = document.getElementById("expiryTimer");
+
   statusEl.innerText = "Waiting for receiver...";
-  statusEl.style.color = "var(--accent)"; // Default styling
+  statusEl.style.color = "var(--accent)";
+
+  // Start 5-minute countdown
+  const SESSION_DURATION = 2 * 60; // seconds
+  let remaining = SESSION_DURATION;
+
+  clearInterval(expiryInterval);
+  timerEl.style.display = "flex";
+  timerEl.classList.remove("expiry-urgent");
+
+  function showExpiredUI() {
+    clearInterval(expiryInterval);
+    expiryInterval = null;
+    // Swap timer content in-place — no hiding/showing needed
+    timerEl.classList.remove("expiry-urgent");
+    timerEl.innerHTML =
+      '<button class="refresh-code-btn" onclick="refreshCode()">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polyline points="23 4 23 10 17 10"></polyline>' +
+      '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>' +
+      '</svg>Refresh Code</button>';
+    timerEl.style.background = 'transparent';
+    timerEl.style.border = 'none';
+    timerEl.style.padding = '12px 0 0';
+    statusEl.innerText = "Code expired. Generate a new one.";
+    statusEl.style.color = "#ff4d4f";
+  }
+
+  function updateTimer() {
+    if (remaining <= 0) {
+      showExpiredUI();
+      return;
+    }
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    timerEl.querySelector(".expiry-countdown").textContent =
+      `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    if (remaining <= 60) {
+      timerEl.classList.add("expiry-urgent");
+    }
+    remaining--;
+  }
+
+  updateTimer();
+  expiryInterval = setInterval(updateTimer, 1000);
 
   const url = `${window.location.origin}/?join=${code}`;
   document.getElementById("qrcode").innerHTML = "";
@@ -66,6 +112,37 @@ socket.on("session-created", (code) => {
     height: 150
   });
 });
+
+// Server tells us the session has expired (no one joined in time)
+socket.on("session-expired", () => {
+  clearInterval(expiryInterval);
+  expiryInterval = null;
+  // Frontend already handles UI via showExpiredUI(); this is just a safety net
+});
+
+function refreshCode() {
+  if (!senderFile) return alert("Please select a file first!");
+
+  // Restore the timer element to its original structure for the next session
+  const timerEl = document.getElementById("expiryTimer");
+  timerEl.style.background = '';
+  timerEl.style.border = '';
+  timerEl.style.padding = '';
+  timerEl.style.display = 'none';
+  timerEl.className = 'expiry-timer';
+  timerEl.innerHTML =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="12" cy="12" r="10"></circle>' +
+    '<polyline points="12 6 12 12 16 14"></polyline>' +
+    '</svg>Code expires in <span class="expiry-countdown">02:00</span>';
+
+  const statusEl = document.getElementById("sendStatus");
+  statusEl.innerText = "Waiting for receiver...";
+  statusEl.style.color = "var(--accent)";
+
+  // Request a fresh session code from the server
+  socket.emit("create-session");
+}
 
 function joinSession() {
   const code = document.getElementById("joinCode").value.trim().toUpperCase();
@@ -91,6 +168,13 @@ socket.on("join-success", () => {
 // SENDER LOGIC: Bulletproof Flow Control
 // ---------------------------------------------------------------- //
 socket.on("receiver-joined", (receiverSocketId) => {
+  // Receiver joined — stop the expiry countdown
+  clearInterval(expiryInterval);
+  expiryInterval = null;
+  const timerEl = document.getElementById("expiryTimer");
+  timerEl.style.display = "none";
+  timerEl.classList.remove("expiry-urgent");
+
   document.getElementById("sendStatus").innerText = "Receiver linked! Sending data...";
   document.getElementById("sendStatus").style.color = "#2ea043"; // Green
 

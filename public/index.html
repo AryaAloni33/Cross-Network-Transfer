@@ -9,15 +9,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-<!-- <link rel="icon" href="/assets/favicon.png?v=1"> -->
+  <!-- <link rel="icon" href="/assets/favicon.png?v=1"> -->
 
-<!-- Favicon -->
-<link rel="icon" href="/assets/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <!-- Favicon -->
+  <link rel="icon" href="/assets/favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
 
-<!-- Apple (iPhone home screen) -->
-<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <!-- Apple (iPhone home screen) -->
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 
 
 
@@ -77,6 +77,14 @@
           <p class="code-label">Your Share Code:</p>
           <div class="code-display" id="codeDisplay"></div>
           <div id="qrcode" class="qr-code"></div>
+          <div id="expiryTimer" class="expiry-timer" style="display: none">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Code expires in <span class="expiry-countdown">02:00</span>
+          </div>
           <p class="status-msg" id="sendStatus">Waiting for receiver...</p>
         </div>
       </div>

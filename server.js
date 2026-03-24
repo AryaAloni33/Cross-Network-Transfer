@@ -16,6 +16,8 @@ const io = new Server(server, {
 
 app.use(express.static("public"));
 
+const SESSION_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
 let sessions = {};
 
 io.on("connection", (socket) => {
@@ -25,8 +27,20 @@ io.on("connection", (socket) => {
     // Generate simple share code
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+    // Schedule auto-expiry after 5 minutes
+    const expiryTimer = setTimeout(() => {
+      if (sessions[code]) {
+        // Notify sender that their session has expired
+        io.to(sessions[code].sender).emit("session-expired", code);
+        delete sessions[code];
+        console.log(`Session ${code} expired and removed.`);
+      }
+    }, SESSION_EXPIRY_MS);
+
     sessions[code] = {
-      sender: socket.id
+      sender: socket.id,
+      expiryTimer,
+      createdAt: Date.now()
     };
 
     socket.join(code);
@@ -36,6 +50,9 @@ io.on("connection", (socket) => {
   socket.on("join-session", (code) => {
     if (sessions[code]) {
       sessions[code].receiver = socket.id;
+
+      // Cancel the expiry timer — connection established, transfer can proceed
+      clearTimeout(sessions[code].expiryTimer);
 
       socket.join(code);
       socket.emit("join-success");
