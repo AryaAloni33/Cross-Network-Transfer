@@ -95,7 +95,7 @@ socket.on("session-created", (code) => {
     const s = remaining % 60;
     timerEl.querySelector(".expiry-countdown").textContent =
       `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    if (remaining <= 60) {
+    if (remaining <= 10) {
       timerEl.classList.add("expiry-urgent");
     }
     remaining--;
