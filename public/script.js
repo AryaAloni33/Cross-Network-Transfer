@@ -23,17 +23,81 @@ window.addEventListener("load", () => {
   }
 });
 
-// UI Inputs
+// ---------------------------------------------------------------- //
+// FILE SELECTION — shared helper used by both click & drag-drop
+// ---------------------------------------------------------------- //
+function setFile(file) {
+  if (!file) return;
+  senderFile = file;
+
+  const dropZone = document.getElementById("dropZone");
+  const label    = document.querySelector(".file-label");
+  const display  = document.getElementById("fileNameDisplay");
+  const hint     = document.querySelector(".drop-hint");
+
+  label.style.display  = "none";
+  if (hint) hint.style.display = "none";
+  display.textContent  = file.name;
+  display.style.display = "block";
+
+  // Flash success green for 800 ms then reset
+  dropZone.classList.remove("drag-over", "drop-rejected");
+  dropZone.classList.add("drop-success");
+  setTimeout(() => dropZone.classList.remove("drop-success"), 800);
+}
+
+// UI Inputs — click / browse
 document.getElementById("fileInput").addEventListener("change", function (e) {
-  const label = document.querySelector(".file-label");
-  const display = document.getElementById("fileNameDisplay");
-  if (e.target.files.length > 0) {
-    senderFile = e.target.files[0];
-    label.style.display = "none";
-    display.textContent = senderFile.name;
-    display.style.display = "block";
-  }
+  if (e.target.files.length > 0) setFile(e.target.files[0]);
 });
+
+// ---------------------------------------------------------------- //
+// DRAG & DROP — on the upload zone
+// ---------------------------------------------------------------- //
+(function initDragDrop() {
+  const dropZone = document.getElementById("dropZone");
+  let dragCounter = 0; // tracks nested enter/leave to avoid flickering
+
+  // Prevent browser from opening the file on accidental drop elsewhere
+  document.addEventListener("dragover",  (e) => e.preventDefault());
+  document.addEventListener("drop",      (e) => e.preventDefault());
+
+  dropZone.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    dragCounter++;
+    if (dragCounter === 1) {
+      dropZone.classList.add("drag-over");
+    }
+  });
+
+  dropZone.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter === 0) {
+      dropZone.classList.remove("drag-over");
+    }
+  });
+
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    dropZone.classList.remove("drag-over");
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      setFile(files[0]); // always pick the first file
+    } else {
+      // Nothing usable was dropped — flash red briefly
+      dropZone.classList.add("drop-rejected");
+      setTimeout(() => dropZone.classList.remove("drop-rejected"), 800);
+    }
+  });
+})();
 
 // Clean up input fields
 document.getElementById("joinCode").addEventListener("input", function (e) {

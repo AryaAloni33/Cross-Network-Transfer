@@ -57,7 +57,7 @@
             Send File
           </h2>
         </div>
-        <div class="file-upload-wrapper">
+        <div class="file-upload-wrapper" id="dropZone">
           <input type="file" id="fileInput" class="file-input" />
           <div class="file-upload-ui">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -66,7 +66,8 @@
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <span class="file-label">Choose a file to share</span>
+            <span class="file-label">Drag &amp; drop a file here, or click to browse</span>
+            <span class="drop-hint">Drop file here!</span>
             <span class="file-name" id="fileNameDisplay"></span>
           </div>
         </div>

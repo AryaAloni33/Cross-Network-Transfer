@@ -9,9 +9,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
   },
-  maxHttpBufferSize: 1e8 // Allow chunks up to 100MB
+  maxHttpBufferSize: 1e8, // Allow chunks up to 100MB
 });
 
 app.use(express.static("public"));
@@ -40,7 +40,7 @@ io.on("connection", (socket) => {
     sessions[code] = {
       sender: socket.id,
       expiryTimer,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
 
     socket.join(code);
@@ -69,7 +69,7 @@ io.on("connection", (socket) => {
     io.to(data.target).emit("file-meta", data.meta);
   });
 
-  // This is the magic bullet: flow-controlled data passing. 
+  // This is the magic bullet: flow-controlled data passing.
   // It waits for the receiver to confirm it got the chunk before asking sender for the next one.
   socket.on("file-raw", (data, callback) => {
     io.to(data.target).emit("file-raw", data.buffer, () => {
@@ -81,5 +81,5 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server strictly bound to port ${PORT}`);
+  console.log(`Server bound to port ${PORT}`);
 });

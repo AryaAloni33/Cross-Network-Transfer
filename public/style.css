@@ -164,13 +164,91 @@ header p {
   align-items: center;
   justify-content: center;
   margin-bottom: 1.5rem;
-  transition: all 0.3s ease;
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
   background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
 }
 
 .file-upload-wrapper:hover {
   border-color: var(--accent);
   background: rgba(88, 166, 255, 0.05);
+}
+
+/* Drag-over active state */
+.file-upload-wrapper.drag-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: rgba(31, 111, 235, 0.12);
+  box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.2), inset 0 0 30px rgba(31, 111, 235, 0.08);
+  transform: scale(1.02);
+  animation: drag-pulse 1s ease-in-out infinite;
+}
+
+/* Drop success flash */
+.file-upload-wrapper.drop-success {
+  border-color: var(--success);
+  border-style: solid;
+  background: rgba(46, 160, 67, 0.1);
+  box-shadow: 0 0 0 4px rgba(46, 160, 67, 0.2);
+  animation: none;
+  transform: scale(1);
+}
+
+/* Drop rejected flash */
+.file-upload-wrapper.drop-rejected {
+  border-color: #ff4d4f;
+  border-style: solid;
+  background: rgba(255, 77, 79, 0.1);
+  box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.2);
+  animation: none;
+  transform: scale(1);
+}
+
+@keyframes drag-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.2), inset 0 0 30px rgba(31, 111, 235, 0.08);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(31, 111, 235, 0.1), inset 0 0 40px rgba(31, 111, 235, 0.14);
+  }
+}
+
+/* Drag-over icon & label color shift */
+.file-upload-wrapper.drag-over .file-upload-ui {
+  color: var(--accent);
+}
+
+.file-upload-wrapper.drag-over .file-upload-ui svg {
+  stroke: var(--accent);
+  transform: translateY(-6px) scale(1.15);
+  transition: transform 0.25s ease, stroke 0.25s ease;
+}
+
+/* Drop-hint overlay text */
+.drop-hint {
+  display: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  pointer-events: none;
+  user-select: none;
+}
+
+.file-upload-wrapper.drag-over .drop-hint {
+  display: block;
+}
+
+.file-upload-wrapper.drag-over .file-label,
+.file-upload-wrapper.drag-over .file-upload-ui svg {
+  opacity: 0.4;
+}
+
+.file-upload-wrapper.drag-over .drop-hint {
+  position: absolute;
+  opacity: 1;
 }
 
 .file-input {
@@ -187,6 +265,15 @@ header p {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0 1.5rem;
+}
+
+.file-label {
+  font-size: 0.95rem;
+  text-align: center;
+  line-height: 1.5;
   color: var(--text-secondary);
 }
 
