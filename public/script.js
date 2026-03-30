@@ -264,11 +264,10 @@ socket.on("receiver-joined", (receiverSocketId) => {
       const statusEl = document.getElementById("sendStatus");
       statusEl.innerText = "Transfer Complete! ";
 
-      // Let the user immediately send another file!
+      // Keep generic send block hidden and show the specific 'Send Another' button
       const sendBtn = document.getElementById("sendBtn");
-      sendBtn.innerText = "Generate New Share Code";
-      sendBtn.disabled = false;
-      sendBtn.style.display = "block";
+      sendBtn.style.display = "none";
+      document.getElementById("sendAnotherBtn").style.display = "block";
 
       return;
     }
@@ -343,6 +342,7 @@ function finalizeTransfer() {
     document.getElementById("receiveBtn").style.display = "none";
     document.getElementById("incomingFileInfo").style.display = "none";
     document.getElementById("downloadContainer").style.display = "block";
+    document.getElementById("receiveAnotherBtn").style.display = "block";
 
     // Auto-trigger the download for better UX and bypassing some mobile browser quirkiness
     link.click();
@@ -380,3 +380,50 @@ socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
     finalizeTransfer();
   }
 });
+
+function resetSender() {
+  senderFile = null;
+  const label = document.querySelector(".file-label");
+  const display = document.getElementById("fileNameDisplay");
+  const hint = document.querySelector(".drop-hint");
+
+  // Clear file UI
+  label.style.display = "block";
+  if (hint) hint.style.display = ""; // Let CSS handle when it shows up
+  display.textContent = "";
+  display.style.display = "none";
+  document.getElementById("fileInput").value = "";
+
+  // Reset panels
+  document.getElementById("codeContainer").style.display = "none";
+  document.getElementById("sendAnotherBtn").style.display = "none";
+
+  const sendBtn = document.getElementById("sendBtn");
+  sendBtn.innerText = "Generate Share Code";
+  sendBtn.style.display = "block";
+  sendBtn.disabled = false;
+
+  // Inform the server just to be tidy (though not strictly required)
+  socket.emit("leave-session");
+}
+
+function resetReceiver() {
+  document.getElementById("joinCode").value = "";
+  document.getElementById("downloadContainer").style.display = "none";
+  document.getElementById("receiveAnotherBtn").style.display = "none";
+
+  const receiveBtn = document.getElementById("receiveBtn");
+  receiveBtn.innerText = "Connect & Receive";
+  receiveBtn.style.display = "block";
+  receiveBtn.disabled = false;
+
+  // Clear receiver state
+  receiverFileName = "";
+  receiverFileSize = 0;
+  receiverFileType = "";
+  receivedBuffers = [];
+  receivedBytes = 0;
+
+  // Clear the search query parameter if it was a deep link
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
