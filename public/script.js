@@ -23,21 +23,19 @@ window.addEventListener("load", () => {
   }
 });
 
-// ---------------------------------------------------------------- //
-// FILE SELECTION — shared helper used by both click & drag-drop
-// ---------------------------------------------------------------- //
+// Drag and Drop feature
 function setFile(file) {
   if (!file) return;
   senderFile = file;
 
   const dropZone = document.getElementById("dropZone");
-  const label    = document.querySelector(".file-label");
-  const display  = document.getElementById("fileNameDisplay");
-  const hint     = document.querySelector(".drop-hint");
+  const label = document.querySelector(".file-label");
+  const display = document.getElementById("fileNameDisplay");
+  const hint = document.querySelector(".drop-hint");
 
-  label.style.display  = "none";
+  label.style.display = "none";
   if (hint) hint.style.display = "none";
-  display.textContent  = file.name;
+  display.textContent = file.name;
   display.style.display = "block";
 
   // Flash success green for 800 ms then reset
@@ -59,8 +57,8 @@ document.getElementById("fileInput").addEventListener("change", function (e) {
   let dragCounter = 0; // tracks nested enter/leave to avoid flickering
 
   // Prevent browser from opening the file on accidental drop elsewhere
-  document.addEventListener("dragover",  (e) => e.preventDefault());
-  document.addEventListener("drop",      (e) => e.preventDefault());
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", (e) => e.preventDefault());
 
   dropZone.addEventListener("dragenter", (e) => {
     e.preventDefault();
@@ -315,6 +313,11 @@ socket.on("file-meta", (meta) => {
   // Pre-set the download link filename
   const link = document.getElementById("downloadLink");
   link.download = receiverFileName;
+
+  // If the file is 0 bytes (often happens with newly created text files), finalize instantly
+  if (receiverFileSize === 0) {
+    finalizeTransfer();
+  }
 });
 
 function formatBytes(bytes, decimals = 2) {
@@ -326,12 +329,41 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
+function finalizeTransfer() {
+  document.getElementById("receiveBtn").innerText = "Finalizing File...";
+
+  setTimeout(() => {
+    const blob = new Blob(receivedBuffers, { type: receiverFileType });
+    const url = URL.createObjectURL(blob);
+    const link = document.getElementById("downloadLink");
+
+    link.href = url;
+    link.download = receiverFileName;
+
+    document.getElementById("receiveBtn").style.display = "none";
+    document.getElementById("incomingFileInfo").style.display = "none";
+    document.getElementById("downloadContainer").style.display = "block";
+
+    // Auto-trigger the download for better UX and bypassing some mobile browser quirkiness
+    link.click();
+  }, 500); // Tiny pause to let the visual UI breathe
+}
+
 socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
   receivedBuffers.push(buffer);
-  receivedBytes += buffer.byteLength;
+
+  // Safely get the BYTE length of the chunk. If the environment parsed text as a String,
+  // String.length gives characters (not bytes), causing transfers to hang closely to the end.
+  const chunkLength = buffer.byteLength !== undefined ? buffer.byteLength : new Blob([buffer]).size;
+  receivedBytes += chunkLength;
 
   // Update live UI percentage perfectly!
-  let percentage = Math.round((receivedBytes / receiverFileSize) * 100);
+  // To avoid division by zero for 0-byte files, handle cautiously
+  let percentage = receiverFileSize > 0 ? Math.round((receivedBytes / receiverFileSize) * 100) : 100;
+
+  // Cap at 100 in case chunks overshoot slightly
+  if (percentage > 100) percentage = 100;
+
   document.getElementById("receiveBtn").innerText =
     `Downloading... ${percentage}%`;
 
@@ -345,19 +377,6 @@ socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
 
   // Transfer absolute completion
   if (receivedBytes >= receiverFileSize) {
-    document.getElementById("receiveBtn").innerText = "Finalizing File...";
-
-    setTimeout(() => {
-      const blob = new Blob(receivedBuffers, { type: receiverFileType });
-      const url = URL.createObjectURL(blob);
-      const link = document.getElementById("downloadLink");
-
-      link.href = url;
-      link.download = receiverFileName;
-
-      document.getElementById("receiveBtn").style.display = "none";
-      document.getElementById("incomingFileInfo").style.display = "none";
-      document.getElementById("downloadContainer").style.display = "block";
-    }, 500); // Tiny pause to let the visual UI breathe
+    finalizeTransfer();
   }
 });
