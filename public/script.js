@@ -241,6 +241,7 @@ socket.on("receiver-joined", ({ count, roster, isBroadcast }) => {
   } else {
     statusEl.innerText = `${count} Receiver(s) connected. Waiting to start…`;
     statusEl.style.color = "#2ea043";
+    updateRoster(count, roster);
     document.getElementById("startBroadcastBtn").style.display = "block";
   }
 });
