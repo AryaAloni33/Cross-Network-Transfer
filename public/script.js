@@ -20,17 +20,17 @@ window.addEventListener("load", () => {
   const joinCode = params.get("join");
   if (joinCode) {
     document.getElementById("joinCode").value = joinCode.toUpperCase();
-    // Show name input so they can optionally enter a name before auto-joining
-    detectBroadcastCode(joinCode.toUpperCase());
+
+    // Show name input so they can optionally enter a name before joining
+    document.getElementById("nameWrapper").style.display = "block";
+
+    // Scroll to the receive panel for better mobile UX
+    const panel = document.querySelector(".receive-panel");
+    if (panel) panel.scrollIntoView({ behavior: "smooth" });
   }
 });
 
-// Peek at a code and reveal name input if it might be a broadcast room
-function detectBroadcastCode(code) {
-  // We'll just show the name field speculatively on deep-link; no harm
-  document.getElementById("nameWrapper").style.display = "block";
-  document.getElementById("receiveBtn").click(); // auto-join
-}
+/* Leaving room for manual joins below */
 
 // ── Mode Toggle ──────────────────────────────────────────────────────────────
 function setMode(mode) {
@@ -118,7 +118,7 @@ document.getElementById("joinCode").addEventListener("input", function () {
   document.getElementById("nameWrapper").style.display = len > 0 ? "block" : "none";
 });
 
-// ── CREATE SESSION ────────────────────────────────────────────────────────────
+// ── CREATE SESSION ─
 function createSession() {
   if (!senderFile) return alert("Please select a file to share!");
 
@@ -141,7 +141,7 @@ socket.on("session-created", ({ code, isBroadcast }) => {
   const statusEl = document.getElementById("sendStatus");
   const timerEl = document.getElementById("expiryTimer");
 
-  const SESSION_DURATION = isBroadcast ? 1 * 60 : 5 * 60; // 1 min broadcast, 5 min direct
+  const SESSION_DURATION = isBroadcast ? 1 * 60 : 2 * 60; // 1 min broadcast, 5 min direct
   let remaining = SESSION_DURATION;
 
   clearInterval(expiryInterval);
