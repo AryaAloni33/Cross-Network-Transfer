@@ -1,9 +1,10 @@
 const socket = io({
-  transports: ["websocket", "polling"], // Force strict connection fallback
+  transports: ["websocket", "polling"],
 });
 
+// ── State ────────────────────────────────────────────────────────────────────
 let senderFile;
-let expiryInterval = null; // Countdown timer for session expiry
+let expiryInterval = null;
 let receiverFileName = "";
 let receiverFileSize = 0;
 let receiverFileType = "";
@@ -11,21 +12,43 @@ let receivedBuffers = [];
 let receivedBytes = 0;
 let sessionCode = "";
 let sendLoopActive = false;
+let currentMode = "direct"; // "direct" | "broadcast"
 
-// URL Auto-join for QR codes
+// ── URL auto-join (QR code deep link) ────────────────────────────────────────
 window.addEventListener("load", () => {
   const params = new URLSearchParams(window.location.search);
   const joinCode = params.get("join");
   if (joinCode) {
-    document.getElementById("joinCode").value = joinCode;
-    joinSession();
-
-    const panel = document.querySelector(".receive-panel");
-    if (panel) panel.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("joinCode").value = joinCode.toUpperCase();
+    // Show name input so they can optionally enter a name before auto-joining
+    detectBroadcastCode(joinCode.toUpperCase());
   }
 });
 
-// Drag and Drop feature
+// Peek at a code and reveal name input if it might be a broadcast room
+function detectBroadcastCode(code) {
+  // We'll just show the name field speculatively on deep-link; no harm
+  document.getElementById("nameWrapper").style.display = "block";
+  document.getElementById("receiveBtn").click(); // auto-join
+}
+
+// ── Mode Toggle ──────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById("modeDirect").classList.toggle("active", mode === "direct");
+  document.getElementById("modeBroadcast").classList.toggle("active", mode === "broadcast");
+
+  const hint = document.getElementById("modeHint");
+  if (mode === "broadcast") {
+    hint.textContent = "Multiple receivers join with the same code. You control when to start.";
+    hint.style.color = "#a78bfa"; // purple tint
+  } else {
+    hint.textContent = "Send to one receiver at a time.";
+    hint.style.color = "";
+  }
+}
+
+// ── File input / drag-drop ───────────────────────────────────────────────────
 function setFile(file) {
   if (!file) return;
   senderFile = file;
@@ -40,42 +63,32 @@ function setFile(file) {
   display.textContent = file.name;
   display.style.display = "block";
 
-  // Flash success green for 800 ms then reset
   dropZone.classList.remove("drag-over", "drop-rejected");
   dropZone.classList.add("drop-success");
   setTimeout(() => dropZone.classList.remove("drop-success"), 800);
 }
 
-// UI Inputs — click / browse
 document.getElementById("fileInput").addEventListener("change", function (e) {
   if (e.target.files.length > 0) setFile(e.target.files[0]);
 });
 
-// ---------------------------------------------------------------- //
-// DRAG & DROP — on the upload zone
-// ---------------------------------------------------------------- //
 (function initDragDrop() {
   const dropZone = document.getElementById("dropZone");
-  let dragCounter = 0; // tracks nested enter/leave to avoid flickering
+  let dragCounter = 0;
 
-  // Prevent browser from opening the file on accidental drop elsewhere
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => e.preventDefault());
 
   dropZone.addEventListener("dragenter", (e) => {
     e.preventDefault();
     dragCounter++;
-    if (dragCounter === 1) {
-      dropZone.classList.add("drag-over");
-    }
+    if (dragCounter === 1) dropZone.classList.add("drag-over");
   });
 
   dropZone.addEventListener("dragleave", (e) => {
     e.preventDefault();
     dragCounter--;
-    if (dragCounter === 0) {
-      dropZone.classList.remove("drag-over");
-    }
+    if (dragCounter === 0) dropZone.classList.remove("drag-over");
   });
 
   dropZone.addEventListener("dragover", (e) => {
@@ -87,33 +100,39 @@ document.getElementById("fileInput").addEventListener("change", function (e) {
     e.preventDefault();
     dragCounter = 0;
     dropZone.classList.remove("drag-over");
-
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      setFile(files[0]); // always pick the first file
+      setFile(files[0]);
     } else {
-      // Nothing usable was dropped — flash red briefly
       dropZone.classList.add("drop-rejected");
       setTimeout(() => dropZone.classList.remove("drop-rejected"), 800);
     }
   });
 })();
 
-// Clean up input fields
-document.getElementById("joinCode").addEventListener("input", function (e) {
+// Uppercase + no-space enforcer on code input
+document.getElementById("joinCode").addEventListener("input", function () {
   this.value = this.value.toUpperCase().replace(/\s/g, "");
+  // Show name field hint while typing (optional UX touch)
+  const len = this.value.length;
+  document.getElementById("nameWrapper").style.display = len > 0 ? "block" : "none";
 });
 
+// ── CREATE SESSION ────────────────────────────────────────────────────────────
 function createSession() {
   if (!senderFile) return alert("Please select a file to share!");
 
   document.getElementById("sendBtn").innerText = "Generating...";
   document.getElementById("sendBtn").disabled = true;
+  // Hide toggle so mode can't be switched mid-session
+  document.getElementById("modeToggle").style.opacity = "0.4";
+  document.getElementById("modeToggle").style.pointerEvents = "none";
+  document.getElementById("modeHint").style.display = "none";
 
-  socket.emit("create-session");
+  socket.emit("create-session", { mode: currentMode });
 }
 
-socket.on("session-created", (code) => {
+socket.on("session-created", ({ code, isBroadcast }) => {
   sessionCode = code;
   document.getElementById("sendBtn").style.display = "none";
   document.getElementById("codeContainer").style.display = "block";
@@ -122,73 +141,71 @@ socket.on("session-created", (code) => {
   const statusEl = document.getElementById("sendStatus");
   const timerEl = document.getElementById("expiryTimer");
 
-  statusEl.innerText = "Waiting for receiver...";
-  statusEl.style.color = "var(--accent)";
+  if (isBroadcast) {
+    document.getElementById("codeModeLabel").innerHTML =
+      `<span class="badge-broadcast">📡 Broadcast Room</span> Share this code:`;
+    statusEl.innerText = "Waiting for members to join…";
+    statusEl.style.color = "#a78bfa";
+    // Show roster
+    document.getElementById("rosterBox").style.display = "block";
+    // In broadcast mode the sender explicitly starts — no expiry countdown
+    timerEl.style.display = "none";
+  } else {
+    // 1-to-1 mode — start expiry countdown
+    document.getElementById("codeModeLabel").innerText = "Your Share Code:";
+    statusEl.innerText = "Waiting for receiver…";
+    statusEl.style.color = "var(--accent)";
 
-  // Start 5-minute countdown
-  const SESSION_DURATION = 2 * 60; // seconds
-  let remaining = SESSION_DURATION;
+    const SESSION_DURATION = 2 * 60;
+    let remaining = SESSION_DURATION;
 
-  clearInterval(expiryInterval);
-  timerEl.style.display = "flex";
-  timerEl.classList.remove("expiry-urgent");
-
-  function showExpiredUI() {
     clearInterval(expiryInterval);
-    expiryInterval = null;
-    // Swap timer content in-place — no hiding/showing needed
+    timerEl.style.display = "flex";
     timerEl.classList.remove("expiry-urgent");
-    timerEl.innerHTML =
-      '<button class="refresh-code-btn" onclick="refreshCode()">' +
-      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<polyline points="23 4 23 10 17 10"></polyline>' +
-      '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>' +
-      "</svg>Refresh Code</button>";
-    timerEl.style.background = "transparent";
-    timerEl.style.border = "none";
-    timerEl.style.padding = "12px 0 0";
-    statusEl.innerText = "Code expired. Generate a new one.";
-    statusEl.style.color = "#ff4d4f";
-  }
 
-  function updateTimer() {
-    if (remaining <= 0) {
-      showExpiredUI();
-      return;
+    function showExpiredUI() {
+      clearInterval(expiryInterval);
+      expiryInterval = null;
+      timerEl.classList.remove("expiry-urgent");
+      timerEl.innerHTML =
+        '<button class="refresh-code-btn" onclick="refreshCode()">' +
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<polyline points="23 4 23 10 17 10"></polyline>' +
+        '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>' +
+        "</svg>Refresh Code</button>";
+      timerEl.style.background = "transparent";
+      timerEl.style.border = "none";
+      timerEl.style.padding = "12px 0 0";
+      statusEl.innerText = "Code expired. Generate a new one.";
+      statusEl.style.color = "#ff4d4f";
     }
-    const m = Math.floor(remaining / 60);
-    const s = remaining % 60;
-    timerEl.querySelector(".expiry-countdown").textContent =
-      `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    if (remaining <= 10) {
-      timerEl.classList.add("expiry-urgent");
-    }
-    remaining--;
-  }
 
-  updateTimer();
-  expiryInterval = setInterval(updateTimer, 1000);
+    function updateTimer() {
+      if (remaining <= 0) { showExpiredUI(); return; }
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      timerEl.querySelector(".expiry-countdown").textContent =
+        `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      if (remaining <= 10) timerEl.classList.add("expiry-urgent");
+      remaining--;
+    }
+
+    updateTimer();
+    expiryInterval = setInterval(updateTimer, 1000);
+  }
 
   const url = `${window.location.origin}/?join=${code}`;
   document.getElementById("qrcode").innerHTML = "";
-  new QRCode(document.getElementById("qrcode"), {
-    text: url,
-    width: 150,
-    height: 150,
-  });
+  new QRCode(document.getElementById("qrcode"), { text: url, width: 150, height: 150 });
 });
 
-// Server tells us the session has expired (no one joined in time)
 socket.on("session-expired", () => {
   clearInterval(expiryInterval);
   expiryInterval = null;
-  // Frontend already handles UI via showExpiredUI(); this is just a safety net
 });
 
 function refreshCode() {
   if (!senderFile) return alert("Please select a file first!");
-
-  // Restore the timer element to its original structure for the next session
   const timerEl = document.getElementById("expiryTimer");
   timerEl.style.background = "";
   timerEl.style.border = "";
@@ -202,53 +219,64 @@ function refreshCode() {
     '</svg>Code expires in <span class="expiry-countdown">02:00</span>';
 
   const statusEl = document.getElementById("sendStatus");
-  statusEl.innerText = "Waiting for receiver...";
+  statusEl.innerText = "Waiting for receiver…";
   statusEl.style.color = "var(--accent)";
 
-  // Request a fresh session code from the server
-  socket.emit("create-session");
+  socket.emit("create-session", { mode: currentMode });
 }
 
-function joinSession() {
-  const code = document.getElementById("joinCode").value.trim().toUpperCase();
-  if (!code) return alert("Please enter the 6-character code!");
-
-  document.getElementById("receiveBtn").innerText = "Connecting securely...";
-  document.getElementById("receiveBtn").disabled = true;
-
-  socket.emit("join-session", code);
-}
-
-socket.on("join-failed", () => {
-  alert(
-    "Connection error! The room code is invalid or the sender disconnected.",
-  );
-  document.getElementById("receiveBtn").innerText = "Connect & Receive";
-  document.getElementById("receiveBtn").disabled = false;
-});
-
-socket.on("join-success", () => {
-  document.getElementById("receiveBtn").innerText = "Linking to sender...";
-});
-
-// ---------------------------------------------------------------- //
-// SENDER LOGIC: Bulletproof Flow Control
-// ---------------------------------------------------------------- //
-socket.on("receiver-joined", (receiverCount) => {
-  // Receiver joined — stop the expiry countdown as the room is secured
+// ── SENDER: receiver joined ──────────────────────────────────────────────────
+socket.on("receiver-joined", ({ count, roster, isBroadcast }) => {
+  // Stop 1-to-1 expiry countdown when first receiver connects
   clearInterval(expiryInterval);
   expiryInterval = null;
-  const timerEl = document.getElementById("expiryTimer");
-  timerEl.style.display = "none";
-  timerEl.classList.remove("expiry-urgent");
+  document.getElementById("expiryTimer").style.display = "none";
+  document.getElementById("expiryTimer").classList.remove("expiry-urgent");
 
-  document.getElementById("sendStatus").innerText =
-    `${receiverCount} Receiver(s) connected. Waiting to start...`;
-  document.getElementById("sendStatus").style.color = "#2ea043"; // Green
+  const statusEl = document.getElementById("sendStatus");
 
-  document.getElementById("startBroadcastBtn").style.display = "block";
+  if (isBroadcast) {
+    statusEl.innerText = `${count} member${count !== 1 ? "s" : ""} in room — open broadcast when ready.`;
+    statusEl.style.color = "#a78bfa";
+    updateRoster(count, roster);
+    document.getElementById("startBroadcastBtn").style.display = "block";
+  } else {
+    statusEl.innerText = `${count} Receiver(s) connected. Waiting to start…`;
+    statusEl.style.color = "#2ea043";
+    document.getElementById("startBroadcastBtn").style.display = "block";
+  }
 });
 
+socket.on("receiver-left", ({ count, roster }) => {
+  const statusEl = document.getElementById("sendStatus");
+  statusEl.innerText = `${count} member${count !== 1 ? "s" : ""} remaining in room.`;
+  updateRoster(count, roster);
+  if (count === 0) {
+    document.getElementById("startBroadcastBtn").style.display = "none";
+    statusEl.innerText = "All receivers left. Waiting for new members…";
+    statusEl.style.color = "#a78bfa";
+  }
+});
+
+function updateRoster(count, roster) {
+  const box = document.getElementById("rosterBox");
+  const list = document.getElementById("rosterList");
+  const cntEl = document.getElementById("rosterCount");
+  if (!box) return;
+  box.style.display = "block";
+  cntEl.textContent = `${count} joined`;
+  list.innerHTML = roster.map(name =>
+    `<li><span class="roster-dot"></span>${escapeHTML(name)}</li>`
+  ).join("");
+}
+
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+// ── SENDER: start broadcast ──────────────────────────────────────────────────
 function startBroadcast() {
   if (sendLoopActive) return;
   sendLoopActive = true;
@@ -256,39 +284,29 @@ function startBroadcast() {
 
   socket.emit("start-broadcast", sessionCode);
 
-  document.getElementById("sendStatus").innerText = "Transferring data across network...";
+  document.getElementById("sendStatus").innerText = "Broadcasting file to all receivers…";
+  document.getElementById("sendStatus").style.color = "#2ea043";
 
-  // First, pass the file structure over
   socket.emit("file-meta", {
     code: sessionCode,
-    meta: {
-      name: senderFile.name,
-      size: senderFile.size,
-      type: senderFile.type,
-    },
+    meta: { name: senderFile.name, size: senderFile.size, type: senderFile.type },
   });
 
-  const chunkSize = 256 * 1024; // Massive 256KB chunks for speed
+  const chunkSize = 256 * 1024;
   let offset = 0;
   const reader = new FileReader();
 
-  // The magical loop: It waits for the server/receiver to confirm receipt
-  // BEFORE sending the next chunk. This prevents 100% of crashes/disconnects.
   function sendNextChunk() {
     if (offset >= senderFile.size) {
       const statusEl = document.getElementById("sendStatus");
-      statusEl.innerText = "Transfer Complete! ";
-
-      // Keep generic send block hidden and show the specific 'Send Another' button
-      const sendBtn = document.getElementById("sendBtn");
-      sendBtn.style.display = "none";
+      statusEl.innerText = "Broadcast Complete! ✓";
+      document.getElementById("sendBtn").style.display = "none";
       document.getElementById("sendAnotherBtn").style.display = "block";
       sendLoopActive = false;
       return;
     }
 
     reader.onload = (e) => {
-      // Emits the slice, waits for receiver callback acknowledgment, then increments
       socket.emit(
         "file-raw",
         { code: sessionCode, buffer: e.target.result },
@@ -303,13 +321,72 @@ function startBroadcast() {
     reader.readAsArrayBuffer(slice);
   }
 
-  // Kickstart the file sending pump
   sendNextChunk();
 }
 
-// ---------------------------------------------------------------- //
-// RECEIVER LOGIC: Synchronized Catching
-// ---------------------------------------------------------------- //
+// ── RECEIVER: join session ────────────────────────────────────────────────────
+function joinSession() {
+  const code = document.getElementById("joinCode").value.trim().toUpperCase();
+  if (!code) return alert("Please enter the share code!");
+
+  // Prevent the sender from joining their own session
+  if (sessionCode && code === sessionCode) {
+    return alert("You can't join your own session! Share this code with someone else.");
+  }
+
+  const name = (document.getElementById("receiverName").value || "").trim() || "Anonymous";
+
+  document.getElementById("receiveBtn").innerText = "Connecting securely…";
+  document.getElementById("receiveBtn").disabled = true;
+
+  socket.emit("join-session", { code, name });
+}
+
+socket.on("join-failed", () => {
+  alert("Connection error! The room code is invalid, the transfer already started, or the sender disconnected.");
+  document.getElementById("receiveBtn").innerText = "Connect & Receive";
+  document.getElementById("receiveBtn").disabled = false;
+});
+
+socket.on("join-failed-self", () => {
+  alert("You can't join your own session! Share this code with someone else.");
+  document.getElementById("receiveBtn").innerText = "Connect & Receive";
+  document.getElementById("receiveBtn").disabled = false;
+});
+
+socket.on("join-success", ({ isBroadcast }) => {
+  if (!isBroadcast) {
+    document.getElementById("receiveBtn").innerText = "Linking to sender…";
+  }
+  // Broadcast mode → waiting-room event follows
+});
+
+// Receiver enters the waiting room (broadcast only)
+socket.on("waiting-room", ({ receiverName }) => {
+  document.getElementById("receiveBtn").style.display = "none";
+  document.getElementById("waitingRoom").style.display = "block";
+  document.getElementById("nameWrapper").style.display = "none";
+  document.getElementById("joinCode").disabled = true;
+});
+
+// Sender kicked off the broadcast — kick receivers out of waiting room
+socket.on("broadcast-starting", () => {
+  document.getElementById("waitingRoom").style.display = "none";
+  document.getElementById("receiveBtn").innerText = "Receiving broadcast…";
+  document.getElementById("receiveBtn").style.display = "block";
+  document.getElementById("receiveBtn").disabled = true;
+});
+
+// Sender left / room closed
+socket.on("room-closed", () => {
+  document.getElementById("waitingRoom").style.display = "none";
+  document.getElementById("receiveBtn").innerText = "Connect & Receive";
+  document.getElementById("receiveBtn").style.display = "block";
+  document.getElementById("receiveBtn").disabled = false;
+  alert("The sender closed the room.");
+});
+
+// ── RECEIVER: file data ───────────────────────────────────────────────────────
 socket.on("file-meta", (meta) => {
   receiverFileName = meta.name;
   receiverFileSize = meta.size;
@@ -317,34 +394,39 @@ socket.on("file-meta", (meta) => {
   receivedBuffers = [];
   receivedBytes = 0;
 
-  // Update UI to show what's coming
   document.getElementById("incomingFileName").innerText = receiverFileName;
-  document.getElementById("incomingFileSize").innerText =
-    formatBytes(receiverFileSize);
+  document.getElementById("incomingFileSize").innerText = formatBytes(receiverFileSize);
   document.getElementById("incomingFileInfo").style.display = "block";
-  document.getElementById("receiveBtn").innerText = "Starting Transfer...";
+  document.getElementById("receiveBtn").innerText = "Starting Transfer…";
+  document.getElementById("waitingRoom").style.display = "none";
 
-  // Pre-set the download link filename
   const link = document.getElementById("downloadLink");
   link.download = receiverFileName;
 
-  // If the file is 0 bytes (often happens with newly created text files), finalize instantly
-  if (receiverFileSize === 0) {
-    finalizeTransfer();
-  }
+  if (receiverFileSize === 0) finalizeTransfer();
 });
 
-function formatBytes(bytes, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-}
+socket.on("file-raw", (buffer, ack) => {
+  receivedBuffers.push(buffer);
+
+  const chunkLength = buffer.byteLength !== undefined ? buffer.byteLength : new Blob([buffer]).size;
+  receivedBytes += chunkLength;
+
+  let pct = receiverFileSize > 0 ? Math.round((receivedBytes / receiverFileSize) * 100) : 100;
+  if (pct > 100) pct = 100;
+
+  document.getElementById("receiveBtn").innerText = `Downloading… ${pct}%`;
+
+  const bar = document.getElementById("progressBarInner");
+  if (bar) bar.style.width = `${pct}%`;
+
+  if (ack) ack();
+
+  if (receivedBytes >= receiverFileSize) finalizeTransfer();
+});
 
 function finalizeTransfer() {
-  document.getElementById("receiveBtn").innerText = "Finalizing File...";
+  document.getElementById("receiveBtn").innerText = "Finalizing File…";
 
   setTimeout(() => {
     const blob = new Blob(receivedBuffers, { type: receiverFileType });
@@ -359,87 +441,74 @@ function finalizeTransfer() {
     document.getElementById("downloadContainer").style.display = "block";
     document.getElementById("receiveAnotherBtn").style.display = "block";
 
-    // Auto-trigger the download for better UX and bypassing some mobile browser quirkiness
     link.click();
-  }, 500); // Tiny pause to let the visual UI breathe
+  }, 500);
 }
 
-socket.on("file-raw", (buffer, acknowledgeServerCallback) => {
-  receivedBuffers.push(buffer);
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
 
-  // Safely get the BYTE length of the chunk. If the environment parsed text as a String,
-  // String.length gives characters (not bytes), causing transfers to hang closely to the end.
-  const chunkLength = buffer.byteLength !== undefined ? buffer.byteLength : new Blob([buffer]).size;
-  receivedBytes += chunkLength;
-
-  // Update live UI percentage perfectly!
-  // To avoid division by zero for 0-byte files, handle cautiously
-  let percentage = receiverFileSize > 0 ? Math.round((receivedBytes / receiverFileSize) * 100) : 100;
-
-  // Cap at 100 in case chunks overshoot slightly
-  if (percentage > 100) percentage = 100;
-
-  document.getElementById("receiveBtn").innerText =
-    `Downloading... ${percentage}%`;
-
-  const progressBar = document.getElementById("progressBarInner");
-  if (progressBar) {
-    progressBar.style.width = `${percentage}%`;
-  }
-
-  // Instantly tell the server we got the chunk so it sends the next one immediately
-  if (acknowledgeServerCallback) acknowledgeServerCallback();
-
-  // Transfer absolute completion
-  if (receivedBytes >= receiverFileSize) {
-    finalizeTransfer();
-  }
-});
-
+// ── RESET ─────────────────────────────────────────────────────────────────────
 function resetSender() {
   senderFile = null;
+  sendLoopActive = false;
+
   const label = document.querySelector(".file-label");
   const display = document.getElementById("fileNameDisplay");
   const hint = document.querySelector(".drop-hint");
 
-  // Clear file UI
   label.style.display = "block";
-  if (hint) hint.style.display = ""; // Let CSS handle when it shows up
+  if (hint) hint.style.display = "";
   display.textContent = "";
   display.style.display = "none";
   document.getElementById("fileInput").value = "";
 
-  // Reset panels
   document.getElementById("codeContainer").style.display = "none";
   document.getElementById("sendAnotherBtn").style.display = "none";
   document.getElementById("startBroadcastBtn").style.display = "none";
+  document.getElementById("rosterBox").style.display = "none";
+  document.getElementById("rosterList").innerHTML = "";
+  document.getElementById("rosterCount").textContent = "0 joined";
+
+  // Re-enable mode toggle
+  const toggle = document.getElementById("modeToggle");
+  toggle.style.opacity = "";
+  toggle.style.pointerEvents = "";
+  document.getElementById("modeHint").style.display = "";
 
   const sendBtn = document.getElementById("sendBtn");
   sendBtn.innerText = "Generate Share Code";
   sendBtn.style.display = "block";
   sendBtn.disabled = false;
 
-  // Inform the server just to be tidy (though not strictly required)
   socket.emit("leave-session");
 }
 
 function resetReceiver() {
   document.getElementById("joinCode").value = "";
+  document.getElementById("joinCode").disabled = false;
+  document.getElementById("receiverName").value = "";
+  document.getElementById("nameWrapper").style.display = "none";
   document.getElementById("downloadContainer").style.display = "none";
   document.getElementById("receiveAnotherBtn").style.display = "none";
+  document.getElementById("waitingRoom").style.display = "none";
 
   const receiveBtn = document.getElementById("receiveBtn");
   receiveBtn.innerText = "Connect & Receive";
   receiveBtn.style.display = "block";
   receiveBtn.disabled = false;
 
-  // Clear receiver state
   receiverFileName = "";
   receiverFileSize = 0;
   receiverFileType = "";
   receivedBuffers = [];
   receivedBytes = 0;
 
-  // Clear the search query parameter if it was a deep link
   window.history.replaceState({}, document.title, window.location.pathname);
 }

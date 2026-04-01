@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <!-- <link rel="icon" href="/assets/favicon.png?v=1"> -->
 
   <!-- Favicon -->
   <link rel="icon" href="/assets/favicon.ico">
@@ -18,15 +17,13 @@
 
   <!-- Apple (iPhone home screen) -->
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
-
-
+</head>
 
 <body>
   <div class="blob-c">
     <div class="shape blob1"></div>
     <div class="shape blob2"></div>
   </div>
-
 
   <div class="container">
     <header>
@@ -40,11 +37,11 @@
         </svg>
         <h1>Cross Network</h1>
       </div>
-      <p>Secure, fast, and simple peer-to-peer file transfer</p>
+      <p>Drop a file. Share a code. Any network, anywhere.</p>
     </header>
 
     <main class="panels">
-      <!-- Send Panel -->
+      <!-- ═══════════════════════════════════════════ SEND PANEL ════ -->
       <div class="panel send-panel">
         <div class="panel-header">
           <h2>
@@ -57,6 +54,32 @@
             Send File
           </h2>
         </div>
+
+        <!-- Mode Toggle -->
+        <div class="mode-toggle" id="modeToggle">
+          <button class="mode-btn active" id="modeDirect" onclick="setMode('direct')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+            Direct
+          </button>
+          <button class="mode-btn" id="modeBroadcast" onclick="setMode('broadcast')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 12a5 5 0 0 0-5-5" />
+              <path d="M7 12a5 5 0 0 1 5-5" />
+              <path d="M20.5 12a8.5 8.5 0 0 0-8.5-8.5" />
+              <path d="M3.5 12a8.5 8.5 0 0 1 8.5-8.5" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+            </svg>
+            Broadcast Room
+          </button>
+        </div>
+        <p class="mode-hint" id="modeHint">Send to one receiver at a time.</p>
+
+        <!-- File Drop Zone -->
         <div class="file-upload-wrapper" id="dropZone">
           <input type="file" id="fileInput" class="file-input" />
           <div class="file-upload-ui">
@@ -71,11 +94,14 @@
             <span class="file-name" id="fileNameDisplay"></span>
           </div>
         </div>
+
         <button class="primary-btn" onclick="createSession()" id="sendBtn">
           Generate Share Code
         </button>
+
+        <!-- Code + QR Container -->
         <div class="code-container" id="codeContainer" style="display: none">
-          <p class="code-label">Your Share Code:</p>
+          <p class="code-label" id="codeModeLabel">Your Share Code:</p>
           <div class="code-display" id="codeDisplay"></div>
           <div id="qrcode" class="qr-code"></div>
           <div id="expiryTimer" class="expiry-timer" style="display: none">
@@ -86,11 +112,31 @@
             </svg>
             Code expires in <span class="expiry-countdown">02:00</span>
           </div>
+
+          <!-- Live Roster (Broadcast mode only) -->
+          <div id="rosterBox" class="roster-box" style="display:none">
+            <div class="roster-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+              <span id="rosterCount">0 joined</span>
+            </div>
+            <ul class="roster-list" id="rosterList"></ul>
+          </div>
+
           <p class="status-msg" id="sendStatus">Waiting for receiver...</p>
-          <button class="primary-btn" id="startBroadcastBtn" onclick="startBroadcast()"
+
+          <button class="primary-btn broadcast-start-btn" id="startBroadcastBtn" onclick="startBroadcast()"
             style="display: none; margin-top: 15px;">
-            Start Transfer (Broadcasting)
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Start Broadcast
           </button>
+
           <button class="secondary-btn" id="sendAnotherBtn" onclick="resetSender()" style="display: none;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
@@ -108,7 +154,7 @@
         <span>OR</span>
       </div>
 
-      <!-- Receive Panel -->
+      <!-- ═════════════════════════════════════════ RECEIVE PANEL ════ -->
       <div class="panel receive-panel">
         <div class="panel-header">
           <h2>
@@ -121,12 +167,29 @@
             Receive File
           </h2>
         </div>
+
         <div class="input-wrapper">
-          <input type="text" id="joinCode" class="join-input" placeholder="Enter share code here" autocomplete="off" />
+          <input type="text" id="joinCode" class="join-input" placeholder="Enter share code" autocomplete="off" />
         </div>
+
+        <!-- Receiver name (shown only for broadcast rooms) -->
+        <div class="input-wrapper" id="nameWrapper" style="display:none">
+          <input type="text" id="receiverName" class="join-input name-input" placeholder="Your name (optional)"
+            maxlength="24" autocomplete="off" />
+        </div>
+
         <button class="primary-btn receive-btn" onclick="joinSession()" id="receiveBtn">
-          Connect & Receive
+          Connect &amp; Receive
         </button>
+
+        <!-- Waiting room (broadcast mode) -->
+        <div id="waitingRoom" class="waiting-room" style="display:none">
+          <div class="waiting-animation">
+            <span></span><span></span><span></span>
+          </div>
+          <p class="waiting-text">You're in the room — waiting for the sender to start the broadcast…</p>
+        </div>
+
         <div id="incomingFileInfo" class="incoming-file-info" style="display: none">
           <div class="file-details">
             <span id="incomingFileName" class="incoming-file-name"></span>
@@ -136,6 +199,7 @@
             <div id="progressBarInner" class="progress-bar-inner"></div>
           </div>
         </div>
+
         <div id="downloadContainer" class="download-container" style="display: none">
           <a id="downloadLink" class="download-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -163,7 +227,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="script.js?v=3"></script>
+  <script src="script.js?v=4"></script>
 </body>
 
 </html>
