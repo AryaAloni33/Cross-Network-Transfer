@@ -27,6 +27,7 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
+  padding: 1rem 0;
 }
 
 /* Background Blobs */
@@ -92,9 +93,10 @@ body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-radius: 24px;
-  padding: 3rem;
+  padding: 2rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  margin: 4rem auto;
+  margin: 1rem auto;
+  /* Minimizing top space */
   position: relative;
   z-index: 10;
   height: auto;
@@ -103,7 +105,7 @@ body {
 
 header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
   flex-shrink: 0;
 }
 
@@ -117,7 +119,8 @@ header {
 }
 
 header h1 {
-  font-size: 2.2rem;
+  font-size: 2rem;
+  /* Slightly smaller h1 */
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.5px;
@@ -125,7 +128,8 @@ header h1 {
 
 header p {
   color: var(--text-secondary);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
+  /* Slightly smaller subhead */
 }
 
 .panels {
@@ -139,12 +143,12 @@ header p {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 2.5rem;
+  padding: 2rem;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  min-height: 480px;
+  min-height: 430px;
   height: auto;
   overflow: visible;
 }
@@ -379,10 +383,14 @@ header p {
 
 .input-wrapper {
   margin-bottom: 1.5rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .join-input {
   width: 100%;
+  max-width: 100%;
   padding: 16px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -392,6 +400,7 @@ header p {
   text-align: center;
   transition: all 0.3s;
   font-family: var(--font-family);
+  box-sizing: border-box;
 }
 
 .join-input:focus {
