@@ -28,13 +28,15 @@ io.on("connection", (socket) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const isBroadcast = mode === "broadcast";
 
+    const EXPIRY_MS = isBroadcast ? 1 * 60 * 1000 : 2 * 60 * 1000; // 1 min broadcast, 2 min direct
+
     const expiryTimer = setTimeout(() => {
       if (sessions[code]) {
         io.to(sessions[code].sender).emit("session-expired", code);
         delete sessions[code];
         console.log(`Session ${code} expired and removed.`);
       }
-    }, SESSION_EXPIRY_MS);
+    }, EXPIRY_MS);
 
     sessions[code] = {
       sender: socket.id,

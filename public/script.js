@@ -141,6 +141,13 @@ socket.on("session-created", ({ code, isBroadcast }) => {
   const statusEl = document.getElementById("sendStatus");
   const timerEl = document.getElementById("expiryTimer");
 
+  const SESSION_DURATION = isBroadcast ? 1 * 60 : 5 * 60; // 1 min broadcast, 5 min direct
+  let remaining = SESSION_DURATION;
+
+  clearInterval(expiryInterval);
+  timerEl.style.display = "flex";
+  timerEl.classList.remove("expiry-urgent");
+
   if (isBroadcast) {
     document.getElementById("codeModeLabel").innerHTML =
       `<span class="badge-broadcast">📡 Broadcast Room</span> Share this code:`;
@@ -148,51 +155,42 @@ socket.on("session-created", ({ code, isBroadcast }) => {
     statusEl.style.color = "#a78bfa";
     // Show roster
     document.getElementById("rosterBox").style.display = "block";
-    // In broadcast mode the sender explicitly starts — no expiry countdown
-    timerEl.style.display = "none";
   } else {
-    // 1-to-1 mode — start expiry countdown
+    // 1-to-1 mode
     document.getElementById("codeModeLabel").innerText = "Your Share Code:";
     statusEl.innerText = "Waiting for receiver…";
     statusEl.style.color = "var(--accent)";
-
-    const SESSION_DURATION = 2 * 60;
-    let remaining = SESSION_DURATION;
-
-    clearInterval(expiryInterval);
-    timerEl.style.display = "flex";
-    timerEl.classList.remove("expiry-urgent");
-
-    function showExpiredUI() {
-      clearInterval(expiryInterval);
-      expiryInterval = null;
-      timerEl.classList.remove("expiry-urgent");
-      timerEl.innerHTML =
-        '<button class="refresh-code-btn" onclick="refreshCode()">' +
-        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-        '<polyline points="23 4 23 10 17 10"></polyline>' +
-        '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>' +
-        "</svg>Refresh Code</button>";
-      timerEl.style.background = "transparent";
-      timerEl.style.border = "none";
-      timerEl.style.padding = "12px 0 0";
-      statusEl.innerText = "Code expired. Generate a new one.";
-      statusEl.style.color = "#ff4d4f";
-    }
-
-    function updateTimer() {
-      if (remaining <= 0) { showExpiredUI(); return; }
-      const m = Math.floor(remaining / 60);
-      const s = remaining % 60;
-      timerEl.querySelector(".expiry-countdown").textContent =
-        `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-      if (remaining <= 10) timerEl.classList.add("expiry-urgent");
-      remaining--;
-    }
-
-    updateTimer();
-    expiryInterval = setInterval(updateTimer, 1000);
   }
+
+  function showExpiredUI() {
+    clearInterval(expiryInterval);
+    expiryInterval = null;
+    timerEl.classList.remove("expiry-urgent");
+    timerEl.innerHTML =
+      '<button class="refresh-code-btn" onclick="refreshCode()">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polyline points="23 4 23 10 17 10"></polyline>' +
+      '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>' +
+      "</svg>Refresh Code</button>";
+    timerEl.style.background = "transparent";
+    timerEl.style.border = "none";
+    timerEl.style.padding = "12px 0 0";
+    statusEl.innerText = "Code expired. Generate a new one.";
+    statusEl.style.color = "#ff4d4f";
+  }
+
+  function updateTimer() {
+    if (remaining <= 0) { showExpiredUI(); return; }
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    timerEl.querySelector(".expiry-countdown").textContent =
+      `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    if (remaining <= 10) timerEl.classList.add("expiry-urgent");
+    remaining--;
+  }
+
+  updateTimer();
+  expiryInterval = setInterval(updateTimer, 1000);
 
   const url = `${window.location.origin}/?join=${code}`;
   document.getElementById("qrcode").innerHTML = "";
