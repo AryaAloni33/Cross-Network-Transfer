@@ -12,8 +12,9 @@
   --font-family: 'Inter', sans-serif;
 }
 
-* {
-  box-sizing: border-box;
+html,
+body {
+  height: 100%;
   margin: 0;
   padding: 0;
 }
@@ -22,23 +23,24 @@ body {
   font-family: var(--font-family);
   background-color: var(--bg-color);
   color: var(--text-primary);
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   position: relative;
   overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 /* Background Blobs */
 .blob-c {
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   z-index: -1;
   overflow: hidden;
   filter: blur(100px);
   opacity: 0.5;
+  pointer-events: none;
 }
 
 .shape {
@@ -84,7 +86,7 @@ body {
 
 .container {
   max-width: 900px;
-  width: 95%;
+  width: 90%;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   backdrop-filter: blur(16px);
@@ -92,13 +94,17 @@ body {
   border-radius: 24px;
   padding: 3rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  margin: 4rem auto;
+  position: relative;
+  z-index: 10;
   height: auto;
-  overflow: visible;
+  min-height: min-content;
 }
 
 header {
   text-align: center;
   margin-bottom: 3rem;
+  flex-shrink: 0;
 }
 
 .logo {
@@ -126,6 +132,7 @@ header p {
   display: flex;
   gap: 2rem;
   align-items: stretch;
+  flex-shrink: 0;
 }
 
 .panel {

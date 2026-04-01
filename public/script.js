@@ -302,6 +302,8 @@ function startBroadcast() {
       document.getElementById("sendBtn").style.display = "none";
       document.getElementById("sendAnotherBtn").style.display = "block";
       sendLoopActive = false;
+      // Auto-refresh for next session
+      setTimeout(() => window.location.reload(), 5000);
       return;
     }
 
@@ -441,6 +443,8 @@ function finalizeTransfer() {
     document.getElementById("receiveAnotherBtn").style.display = "block";
 
     link.click();
+    // Auto-refresh for next session
+    setTimeout(() => window.location.reload(), 10000);
   }, 500);
 }
 
