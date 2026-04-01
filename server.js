@@ -39,8 +39,10 @@ io.on("connection", (socket) => {
 
     sessions[code] = {
       sender: socket.id,
+      receivers: [],
       expiryTimer,
       createdAt: Date.now(),
+      transferStarted: false,
     };
 
     socket.join(code);
@@ -49,7 +51,12 @@ io.on("connection", (socket) => {
 
   socket.on("join-session", (code) => {
     if (sessions[code]) {
-      sessions[code].receiver = socket.id;
+      if (sessions[code].transferStarted) {
+        // Prevent joining mid-transfer
+        return socket.emit("join-failed");
+      }
+
+      sessions[code].receivers.push(socket.id);
 
       // Cancel the expiry timer — connection established, transfer can proceed
       clearTimeout(sessions[code].expiryTimer);
@@ -57,25 +64,45 @@ io.on("connection", (socket) => {
       socket.join(code);
       socket.emit("join-success");
 
-      // Send the receiver's specific ID to the sender so they can sync up perfectly
-      io.to(sessions[code].sender).emit("receiver-joined", socket.id);
+      // Send the total count of receivers connected to the sender
+      io.to(sessions[code].sender).emit("receiver-joined", sessions[code].receivers.length);
     } else {
       socket.emit("join-failed");
     }
   });
 
-  socket.on("file-meta", (data) => {
-    // Pass metadata safely to receiver
-    io.to(data.target).emit("file-meta", data.meta);
+  socket.on("start-broadcast", (code) => {
+    if (sessions[code]) sessions[code].transferStarted = true;
   });
 
-  // This is the magic bullet: flow-controlled data passing.
-  // It waits for the receiver to confirm it got the chunk before asking sender for the next one.
+  socket.on("file-meta", (data) => {
+    const session = sessions[data.code];
+    if (session) {
+      session.receivers.forEach(r => {
+        io.to(r).emit("file-meta", data.meta);
+      });
+    }
+  });
+
   socket.on("file-raw", (data, callback) => {
-    io.to(data.target).emit("file-raw", data.buffer, () => {
-      // Once receiver acknowledges, we acknowledge the sender to send more
+    const session = sessions[data.code];
+    if (session && session.receivers.length > 0) {
+      let acks = 0;
+      const total = session.receivers.length;
+
+      session.receivers.forEach(r => {
+        io.to(r).emit("file-raw", data.buffer, () => {
+          acks++;
+          if (acks === total) {
+            // Only acknowledge the sender when ALL receivers have downloaded the chunk
+            if (callback) callback();
+          }
+        });
+      });
+    } else {
+      // If everyone disconnected, stop waiting
       if (callback) callback();
-    });
+    }
   });
 });
 

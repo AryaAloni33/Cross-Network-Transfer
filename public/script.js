@@ -9,6 +9,8 @@ let receiverFileSize = 0;
 let receiverFileType = "";
 let receivedBuffers = [];
 let receivedBytes = 0;
+let sessionCode = "";
+let sendLoopActive = false;
 
 // URL Auto-join for QR codes
 window.addEventListener("load", () => {
@@ -112,6 +114,7 @@ function createSession() {
 }
 
 socket.on("session-created", (code) => {
+  sessionCode = code;
   document.getElementById("sendBtn").style.display = "none";
   document.getElementById("codeContainer").style.display = "block";
   document.getElementById("codeDisplay").innerText = code;
@@ -231,8 +234,8 @@ socket.on("join-success", () => {
 // ---------------------------------------------------------------- //
 // SENDER LOGIC: Bulletproof Flow Control
 // ---------------------------------------------------------------- //
-socket.on("receiver-joined", (receiverSocketId) => {
-  // Receiver joined — stop the expiry countdown
+socket.on("receiver-joined", (receiverCount) => {
+  // Receiver joined — stop the expiry countdown as the room is secured
   clearInterval(expiryInterval);
   expiryInterval = null;
   const timerEl = document.getElementById("expiryTimer");
@@ -240,12 +243,24 @@ socket.on("receiver-joined", (receiverSocketId) => {
   timerEl.classList.remove("expiry-urgent");
 
   document.getElementById("sendStatus").innerText =
-    "Receiver linked! Sending data...";
+    `${receiverCount} Receiver(s) connected. Waiting to start...`;
   document.getElementById("sendStatus").style.color = "#2ea043"; // Green
+
+  document.getElementById("startBroadcastBtn").style.display = "block";
+});
+
+function startBroadcast() {
+  if (sendLoopActive) return;
+  sendLoopActive = true;
+  document.getElementById("startBroadcastBtn").style.display = "none";
+
+  socket.emit("start-broadcast", sessionCode);
+
+  document.getElementById("sendStatus").innerText = "Transferring data across network...";
 
   // First, pass the file structure over
   socket.emit("file-meta", {
-    target: receiverSocketId,
+    code: sessionCode,
     meta: {
       name: senderFile.name,
       size: senderFile.size,
@@ -268,7 +283,7 @@ socket.on("receiver-joined", (receiverSocketId) => {
       const sendBtn = document.getElementById("sendBtn");
       sendBtn.style.display = "none";
       document.getElementById("sendAnotherBtn").style.display = "block";
-
+      sendLoopActive = false;
       return;
     }
 
@@ -276,7 +291,7 @@ socket.on("receiver-joined", (receiverSocketId) => {
       // Emits the slice, waits for receiver callback acknowledgment, then increments
       socket.emit(
         "file-raw",
-        { target: receiverSocketId, buffer: e.target.result },
+        { code: sessionCode, buffer: e.target.result },
         () => {
           offset += chunkSize;
           sendNextChunk();
@@ -290,7 +305,7 @@ socket.on("receiver-joined", (receiverSocketId) => {
 
   // Kickstart the file sending pump
   sendNextChunk();
-});
+}
 
 // ---------------------------------------------------------------- //
 // RECEIVER LOGIC: Synchronized Catching
@@ -397,6 +412,7 @@ function resetSender() {
   // Reset panels
   document.getElementById("codeContainer").style.display = "none";
   document.getElementById("sendAnotherBtn").style.display = "none";
+  document.getElementById("startBroadcastBtn").style.display = "none";
 
   const sendBtn = document.getElementById("sendBtn");
   sendBtn.innerText = "Generate Share Code";
