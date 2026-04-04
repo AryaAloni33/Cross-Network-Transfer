@@ -88,7 +88,7 @@
 
         <!-- File Drop Zone -->
         <div class="file-upload-wrapper" id="dropZone">
-          <input type="file" id="fileInput" class="file-input" />
+          <input type="file" id="fileInput" class="file-input" multiple />
           <div class="file-upload-ui">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
               stroke-linecap="round" stroke-linejoin="round">
@@ -255,6 +255,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="script.js?v=6"></script>
 </body>

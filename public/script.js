@@ -3,7 +3,8 @@ const socket = io({
 });
 
 // ── State ────────────────────────────────────────────────────────────────────
-let senderFile;
+let selectedFiles = []; // File[]
+let senderFile; // The actual file/blob being sent
 let expiryInterval = null;
 let receiverFileName = "";
 let receiverFileSize = 0;
@@ -63,9 +64,9 @@ function setMode(mode) {
 }
 
 // ── File input / drag-drop ───────────────────────────────────────────────────
-function setFile(file) {
-  if (!file) return;
-  senderFile = file;
+function handleFiles(files) {
+  if (!files || files.length === 0) return;
+  selectedFiles = Array.from(files);
 
   const dropZone = document.getElementById("dropZone");
   const label = document.querySelector(".file-label");
@@ -74,7 +75,13 @@ function setFile(file) {
 
   label.style.display = "none";
   if (hint) hint.style.display = "none";
-  display.textContent = file.name;
+
+  if (selectedFiles.length === 1) {
+    display.textContent = selectedFiles[0].name;
+  } else {
+    const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+    display.textContent = `${selectedFiles.length} files selected (${formatBytes(totalSize)})`;
+  }
   display.style.display = "block";
 
   dropZone.classList.remove("drag-over", "drop-rejected");
@@ -83,7 +90,7 @@ function setFile(file) {
 }
 
 document.getElementById("fileInput").addEventListener("change", function (e) {
-  if (e.target.files.length > 0) setFile(e.target.files[0]);
+  if (e.target.files.length > 0) handleFiles(e.target.files);
 });
 
 (function initDragDrop() {
@@ -116,7 +123,7 @@ document.getElementById("fileInput").addEventListener("change", function (e) {
     dropZone.classList.remove("drag-over");
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      setFile(files[0]);
+      handleFiles(files);
     } else {
       dropZone.classList.add("drop-rejected");
       setTimeout(() => dropZone.classList.remove("drop-rejected"), 800);
@@ -133,7 +140,7 @@ document.getElementById("joinCode").addEventListener("input", function () {
 });
 
 // ── CREATE SESSION ─
-function createSession() {
+async function createSession() {
   if (currentMode === "message") {
     const text = document.getElementById("messageInput").value.trim();
     if (!text) return alert("Please type a message first!");
@@ -141,10 +148,30 @@ function createSession() {
     const blob = new Blob([text], { type: "text/plain" });
     senderFile = new File([blob], "message.txt", { type: "text/plain" });
   } else {
-    if (!senderFile) return alert("Please select a file to share!");
+    if (!selectedFiles || selectedFiles.length === 0) return alert("Please select a file to share!");
+
+    if (selectedFiles.length === 1) {
+      senderFile = selectedFiles[0];
+    } else {
+      // Zip multiple files
+      document.getElementById("sendBtn").innerText = "Compacting files...";
+      document.getElementById("sendBtn").disabled = true;
+      try {
+        const zip = new JSZip();
+        selectedFiles.forEach(f => zip.file(f.name, f));
+        const content = await zip.generateAsync({ type: "blob" });
+        senderFile = new File([content], "SharedBundle.zip", { type: "application/zip" });
+      } catch (err) {
+        console.error("Zipping failed:", err);
+        alert("Failed to package multiple files. Please try again or send a single file.");
+        document.getElementById("sendBtn").innerText = "Generate Share Code";
+        document.getElementById("sendBtn").disabled = false;
+        return;
+      }
+    }
   }
 
-  document.getElementById("sendBtn").innerText = "Generating...";
+  document.getElementById("sendBtn").innerText = "Generating Code...";
   document.getElementById("sendBtn").disabled = true;
   // Hide toggle so mode can't be switched mid-session
   document.getElementById("modeToggle").style.opacity = "0.4";
@@ -513,6 +540,7 @@ function formatBytes(bytes, decimals = 2) {
 
 // ── RESET ─────────────────────────────────────────────────────────────────────
 function resetSender() {
+  selectedFiles = [];
   senderFile = null;
   sendLoopActive = false;
 
