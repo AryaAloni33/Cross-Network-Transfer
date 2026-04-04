@@ -65,6 +65,13 @@
             </svg>
             Direct
           </button>
+          <button class="mode-btn" id="modeMessage" onclick="setMode('message')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Message
+          </button>
           <button class="mode-btn" id="modeBroadcast" onclick="setMode('broadcast')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round">
@@ -74,7 +81,7 @@
               <path d="M3.5 12a8.5 8.5 0 0 1 8.5-8.5" />
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
             </svg>
-            Broadcast Room
+            Broadcast
           </button>
         </div>
         <p class="mode-hint" id="modeHint">Send to one receiver at a time.</p>
@@ -93,6 +100,12 @@
             <span class="drop-hint">Drop file here!</span>
             <span class="file-name" id="fileNameDisplay"></span>
           </div>
+        </div>
+
+        <!-- Message Input Area -->
+        <div class="message-input-wrapper" id="messageWrapper" style="display: none;">
+          <textarea id="messageInput" placeholder="Type or paste your message here..."
+            class="message-textarea"></textarea>
         </div>
 
         <button class="primary-btn" onclick="createSession()" id="sendBtn">
@@ -198,6 +211,22 @@
           <div class="progress-bar">
             <div id="progressBarInner" class="progress-bar-inner"></div>
           </div>
+        </div>
+
+        <!-- Text Message Display -->
+        <div id="textMessageContainer" class="text-message-container" style="display: none">
+          <div class="text-message-header">
+            <span>Received Message</span>
+            <button class="copy-msg-btn" onclick="copyReceivedMessage()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="textMessageContent" class="text-message-content"></div>
         </div>
 
         <div id="downloadContainer" class="download-container" style="display: none">

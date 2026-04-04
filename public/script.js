@@ -36,15 +36,29 @@ window.addEventListener("load", () => {
 function setMode(mode) {
   currentMode = mode;
   document.getElementById("modeDirect").classList.toggle("active", mode === "direct");
+  document.getElementById("modeMessage").classList.toggle("active", mode === "message");
   document.getElementById("modeBroadcast").classList.toggle("active", mode === "broadcast");
 
   const hint = document.getElementById("modeHint");
-  if (mode === "broadcast") {
+  const dropZone = document.getElementById("dropZone");
+  const messageArea = document.getElementById("messageWrapper");
+
+  if (mode === "message") {
+    hint.textContent = "Type or paste a message to share instantly.";
+    hint.style.color = "var(--accent)";
+    dropZone.style.display = "none";
+    messageArea.style.display = "block";
+    senderFile = null; // Clear file if switched to message
+  } else if (mode === "broadcast") {
     hint.textContent = "Multiple receivers join with the same code. You control when to start.";
-    hint.style.color = "#a78bfa"; // purple tint
+    hint.style.color = "#a78bfa";
+    dropZone.style.display = "flex";
+    messageArea.style.display = "none";
   } else {
     hint.textContent = "Send to one receiver at a time.";
     hint.style.color = "";
+    dropZone.style.display = "flex";
+    messageArea.style.display = "none";
   }
 }
 
@@ -120,7 +134,15 @@ document.getElementById("joinCode").addEventListener("input", function () {
 
 // ── CREATE SESSION ─
 function createSession() {
-  if (!senderFile) return alert("Please select a file to share!");
+  if (currentMode === "message") {
+    const text = document.getElementById("messageInput").value.trim();
+    if (!text) return alert("Please type a message first!");
+    // Convert text to a virtual file
+    const blob = new Blob([text], { type: "text/plain" });
+    senderFile = new File([blob], "message.txt", { type: "text/plain" });
+  } else {
+    if (!senderFile) return alert("Please select a file to share!");
+  }
 
   document.getElementById("sendBtn").innerText = "Generating...";
   document.getElementById("sendBtn").disabled = true;
@@ -429,11 +451,26 @@ socket.on("file-raw", (buffer, ack) => {
 function finalizeTransfer() {
   document.getElementById("receiveBtn").innerText = "Finalizing File…";
 
-  setTimeout(() => {
+  setTimeout(async () => {
     const blob = new Blob(receivedBuffers, { type: receiverFileType });
     const url = URL.createObjectURL(blob);
-    const link = document.getElementById("downloadLink");
 
+    const isTextMessage = receiverFileName === "message.txt" || (receiverFileType && receiverFileType.startsWith("text/"));
+
+    if (isTextMessage) {
+      // Decode the text and show it
+      try {
+        const text = await blob.text();
+        const msgContainer = document.getElementById("textMessageContainer");
+        const msgContent = document.getElementById("textMessageContent");
+        msgContent.innerText = text;
+        msgContainer.style.display = "block";
+      } catch (err) {
+        console.error("Failed to decode text:", err);
+      }
+    }
+
+    const link = document.getElementById("downloadLink");
     link.href = url;
     link.download = receiverFileName;
 
@@ -442,10 +479,27 @@ function finalizeTransfer() {
     document.getElementById("downloadContainer").style.display = "block";
     document.getElementById("receiveAnotherBtn").style.display = "block";
 
-    link.click();
+    // Auto-click download only if it's NOT just a message (optional choice)
+    if (!isTextMessage) {
+      link.click();
+    }
     // Auto-refresh for next session
-    setTimeout(() => window.location.reload(), 10000);
+    setTimeout(() => window.location.reload(), 20000); // 20s for text reading
   }, 500);
+}
+
+function copyReceivedMessage() {
+  const content = document.getElementById("textMessageContent").innerText;
+  navigator.clipboard.writeText(content).then(() => {
+    const btn = document.querySelector(".copy-msg-btn");
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+    btn.style.color = "var(--success)";
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.style.color = "";
+    }, 2000);
+  });
 }
 
 function formatBytes(bytes, decimals = 2) {
@@ -471,6 +525,7 @@ function resetSender() {
   display.textContent = "";
   display.style.display = "none";
   document.getElementById("fileInput").value = "";
+  document.getElementById("messageInput").value = "";
 
   document.getElementById("codeContainer").style.display = "none";
   document.getElementById("sendAnotherBtn").style.display = "none";
@@ -501,6 +556,7 @@ function resetReceiver() {
   document.getElementById("downloadContainer").style.display = "none";
   document.getElementById("receiveAnotherBtn").style.display = "none";
   document.getElementById("waitingRoom").style.display = "none";
+  document.getElementById("textMessageContainer").style.display = "none";
 
   const receiveBtn = document.getElementById("receiveBtn");
   receiveBtn.innerText = "Connect & Receive";

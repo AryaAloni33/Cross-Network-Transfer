@@ -40,7 +40,7 @@ io.on("connection", (socket) => {
 
     sessions[code] = {
       sender: socket.id,
-      receivers: [],       // array of { id, name }
+      receivers: [], // array of { id, name }
       expiryTimer,
       createdAt: Date.now(),
       transferStarted: false,
@@ -83,7 +83,7 @@ io.on("connection", (socket) => {
     }
 
     // Tell the sender about the updated roster
-    const roster = sessions[code].receivers.map(r => r.name);
+    const roster = sessions[code].receivers.map((r) => r.name);
     io.to(sessions[code].sender).emit("receiver-joined", {
       count: sessions[code].receivers.length,
       roster,
@@ -96,7 +96,7 @@ io.on("connection", (socket) => {
     if (sessions[code]) {
       sessions[code].transferStarted = true;
       // Wake up all waiting receivers
-      sessions[code].receivers.forEach(r => {
+      sessions[code].receivers.forEach((r) => {
         io.to(r.id).emit("broadcast-starting");
       });
     }
@@ -106,7 +106,7 @@ io.on("connection", (socket) => {
   socket.on("file-meta", (data) => {
     const session = sessions[data.code];
     if (session) {
-      session.receivers.forEach(r => {
+      session.receivers.forEach((r) => {
         io.to(r.id).emit("file-meta", data.meta);
       });
     }
@@ -119,7 +119,7 @@ io.on("connection", (socket) => {
       let acks = 0;
       const total = session.receivers.length;
 
-      session.receivers.forEach(r => {
+      session.receivers.forEach((r) => {
         io.to(r.id).emit("file-raw", data.buffer, () => {
           acks++;
           if (acks === total && callback) callback();
@@ -136,7 +136,7 @@ io.on("connection", (socket) => {
       const session = sessions[code];
       if (session.sender === socket.id) {
         // Sender left — notify all receivers and clean up
-        session.receivers.forEach(r => {
+        session.receivers.forEach((r) => {
           io.to(r.id).emit("room-closed");
         });
         clearTimeout(session.expiryTimer);
@@ -145,9 +145,9 @@ io.on("connection", (socket) => {
       } else {
         // A receiver left — remove from roster and notify sender
         const before = session.receivers.length;
-        session.receivers = session.receivers.filter(r => r.id !== socket.id);
+        session.receivers = session.receivers.filter((r) => r.id !== socket.id);
         if (session.receivers.length < before) {
-          const roster = session.receivers.map(r => r.name);
+          const roster = session.receivers.map((r) => r.name);
           io.to(session.sender).emit("receiver-left", {
             count: session.receivers.length,
             roster,
@@ -160,5 +160,5 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server bound to port ${PORT}`);
+  console.log(`Server bound to port ${PORT} => http://localhost:${PORT}`);
 });
