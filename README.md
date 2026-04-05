@@ -1,159 +1,104 @@
-# Cross-Network File Transfer System
+# <img src="public/assets/icon-192.png" width="48" height="48" valign="middle"> Cross Network Transfer
 
-A lightweight web-based application that enables **real-time file transfer between devices connected to different networks**. The system allows users to seamlessly share files using a **temporary session code or QR code**, without requiring application installation, user accounts, or shared local networks.
-
-This project demonstrates the design and implementation of a **cross-network file sharing platform** using modern web technologies and real-time communication protocols.
+A lightweight, premium web application that enables **real-time file and message transfer** between any two devices, regardless of the network they are on. No apps, no accounts, no local network requirements—just a simple code and you're connected.
 
 ---
 
-## Project Overview
+We've been busy making "Cross Network" more powerful and versatile. Here are the latest core features:
 
-Many traditional file-sharing tools require devices to be connected to the **same local network**. This limitation makes it difficult to transfer files when devices are connected through **different Wi-Fi networks, mobile data, or remote connections**.
-
-The Cross-Network File Transfer System addresses this limitation by enabling devices to establish a **temporary real-time communication channel through a centralized server**, allowing secure and efficient file transfer regardless of network differences.
-
-The system focuses on simplicity, accessibility, and minimal setup while maintaining efficient data transmission.
-
----
-
-## Key Features
-
-* Cross-network file transfer between devices
-* Real-time communication using WebSockets
-* Device pairing using a temporary session code
-* QR code-based device connection
-* Chunk-based file transmission for reliable transfers
-* No installation or account creation required
-* Browser-based interface accessible from any device
-* Lightweight and minimal dependency architecture
+- **📡 Broadcast Mode**: Want to send a file to an entire room? Switch to Broadcast mode and let multiple receivers join your session simultaneously.
+- **💬 Instant Messaging**: Not just for files anymore! Switch to "Message" mode to send text snippets, links, or notes instantly across devices.
+- **⏳ Session Security**: All share codes now come with a built-in **5-minute expiry timer**. This keeps your transfers secure and prevents old codes from lingering.
+- **📱 Mobile Optimized**: A refined, responsive UI that feels like a native app on your phone, complete with smooth animations and a "Secure Enclave" aesthetic.
+- **🎨 Premium UI/UX**: Featuring a modern "Glassmorphism" design, dynamic blob backgrounds, and intuitive drag-and-drop support.
 
 ---
 
-## System Architecture
+## ✨ Key Features
 
-The application follows a **client-server architecture** where the server acts as a signaling and routing layer between devices.
+- **Universal Compatibility**: Works on any browser (Chrome, Safari, Firefox, Edge) and any OS (iOS, Android, Windows, macOS).
+- **Zero Setup**: No installation, no registration, no tracking.
+- **QR Connectivity**: Just scan the generated QR code to connect instantly—perfect for mobile-to-desktop transfers.
+- **Chunked Streaming**: Reliable file transmission using chunked binary data over WebSockets (Socket.IO).
+- **End-to-End Feel**: Data flows directly (via our signaling server) to the receiver, ensuring speed and simplicity.
 
+---
+
+## 🛠️ System Architecture
+
+The application follows a **client-server architecture** where the Node.js server acts as a lightning-fast signaling and routing layer.
+
+```text
                  ┌─────────────────────┐
                  │   Sender Device     │
                  │  (Browser / PC)     │
                  └─────────┬───────────┘
                            │
-                           │  WebSocket Connection
+                           │  WebSocket (Socket.IO)
                            │
                  ┌─────────▼───────────┐
                  │   Node.js Server    │
-                 │   Express + Socket  │
+                 │  Express Backend    │
                  │                     │
                  │  • Session Manager  │
-                 │  • QR Generator     │
+                 │  • QR Generation    │
                  │  • Chunk Routing    │
                  └─────────┬───────────┘
                            │
-                           │  WebSocket Connection
+                           │  WebSocket (Socket.IO)
                            │
                  ┌─────────▼───────────┐
                  │   Receiver Device   │
                  │  (Browser / Phone)  │
                  └─────────────────────┘
-
-The server manages:
-
-* session creation
-* device pairing
-* real-time communication channels
-* routing of file chunks between connected devices
-
-Files are transmitted in **binary chunks** to ensure efficient and continuous streaming.
-
----
-
-## Technology Stack
-
-### Backend
-
-* Node.js
-* Express.js
-* Socket.IO (WebSocket communication)
-
-### Frontend
-
-* HTML
-* CSS
-* JavaScript
-
-### Additional Components
-
-* QR Code generation for quick device pairing
-* Chunk-based file streaming mechanism
-
----
-
-## Project Structure
-
-```id="1s3o2m"
-file-transfer-app
-│
-├── server.js
-├── package.json
-│
-└── public
-    ├── index.html
-    ├── script.js
-    └── style.css
 ```
 
 ---
 
-## Installation
+## 📦 Tech Stack
 
-Clone the repository:
+- **Backend**: [Node.js](https://nodejs.org/) & [Express](https://expressjs.com/)
+- **Real-time**: [Socket.IO](https://socket.io/)
+- **Frontend**: [HTML5](https://developer.mozilla.org/en-US/docs/Web/HTML), [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS), [JavaScript (ES6+)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+- **Utilities**: [QRCode.js](https://davidshimjs.github.io/qrcodejs/) & [JSZip](https://stuk.github.io/jszip/)
 
-```id="ewf66k"
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repo
+
+```bash
 git clone https://github.com/AryaAloni33/cross-network-file-transfer.git
-```
-
-Navigate to the project directory:
-
-```id="8h15iw"
 cd cross-network-file-transfer
 ```
 
-Install dependencies:
+### 2. Install & Run
 
-```id="xfoaen"
+```bash
 npm install
+npm start
 ```
 
-Start the server:
+### 3. Access
 
-```id="ujmcew"
-node server.js
-```
-
-Open the application in your browser:
-
-```id="ceoiyr"
-http://localhost:3000
-```
+Open `http://localhost:3000` in your browser.
 
 ---
 
-## Usage
+## 📖 How to Use
 
-### Sending a File
-
-1. Open the application in a browser.
-2. Select the file to be transferred.
-3. A unique session code and QR code will be generated.
-
-### Receiving a File
-
-1. Open the application on another device.
-2. Enter the session code or scan the QR code.
-3. Once connected, the file transfer begins automatically.
+1.  **Select Your Mode**: Choose between **Direct** (1-to-1), **Message** (Text), or **Broadcast** (1-to-Many).
+2.  **Generate Code**: Upload your file or type your message and click **Generate Share Code**.
+3.  **Share**: Give the 6-digit code to your receiver or have them scan the **QR Code**.
+4.  **Transfer**: Watch the real-time progress bar as your data streams across!
 
 ---
 
-## Author
+## 👤 Author
 
-Developed as part of a learning initiative to explore **real-time communication systems and cross-network file transfer mechanisms using modern web technologies**.
+Developed as an exploration into real-time communication systems and seamless cross-network data transfer.
+
+---
+
+_Note: For the best experience on mobile, simply open your browser and point it to the hosted URL!_
