@@ -1,10 +1,11 @@
 # <img src="public/assets/icon-192.png" width="48" height="48" valign="middle"> Cross Network Transfer
 
+Visit the [Cross Network Transfer Website](https://cross-network-transfer.onrender.com) to try it out.
+
 A lightweight, premium web application that enables **real-time file and message transfer** between any two devices, regardless of the network they are on. No apps, no accounts, no local network requirements—just a simple code and you're connected.
 
 ---
 
-We've been busy making "Cross Network" more powerful and versatile. Here are the latest core features:
 
 - **📡 Broadcast Mode**: Want to send a file to an entire room? Switch to Broadcast mode and let multiple receivers join your session simultaneously.
 - **💬 Instant Messaging**: Not just for files anymore! Switch to "Message" mode to send text snippets, links, or notes instantly across devices.
