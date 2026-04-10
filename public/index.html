@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=9" />
 
   <!-- Favicon -->
   <link rel="icon" href="/assets/favicon.ico">
@@ -104,6 +104,14 @@
             <span class="drop-hint">Drop files/folders here!</span>
             <span class="file-name" id="fileNameDisplay"></span>
           </div>
+        </div>
+
+        <!-- Multi-file / Folder Breakdown -->
+        <div id="fileListContainer" class="file-list-container" style="display: none;">
+          <div class="file-list-header">
+            <span id="fileListCount">0 items selected</span>
+          </div>
+          <ul class="file-list" id="fileList"></ul>
         </div>
 
         <!-- Message Input Area -->
@@ -261,7 +269,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=9"></script>
 </body>
 
 </html>

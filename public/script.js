@@ -76,11 +76,29 @@ function handleFiles(files) {
   label.style.display = "none";
   if (hint) hint.style.display = "none";
 
+  const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+
   if (selectedFiles.length === 1) {
     display.textContent = selectedFiles[0].name;
   } else {
-    const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
     display.textContent = `${selectedFiles.length} files selected (${formatBytes(totalSize)})`;
+  }
+
+  // Show files list
+  const listContainer = document.getElementById("fileListContainer");
+  if (listContainer) {
+    document.getElementById("fileListCount").textContent = `${selectedFiles.length} item${selectedFiles.length !== 1 ? 's' : ''} (${formatBytes(totalSize)})`;
+    const ul = document.getElementById("fileList");
+    ul.innerHTML = selectedFiles.slice(0, 100).map(f => {
+      const path = f.customPath || f.webkitRelativePath || f.name;
+      // Basic escaping since it's injected as HTML
+      const safePath = path.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      return `<li><span class="f-name" title="${safePath}">${safePath}</span><span class="f-size">${formatBytes(f.size)}</span></li>`;
+    }).join('');
+    if (selectedFiles.length > 100) {
+      ul.innerHTML += `<li><span class="f-name" style="opacity:0.7">...and ${selectedFiles.length - 100} more items</span></li>`;
+    }
+    listContainer.style.display = "block";
   }
   display.style.display = "block";
 
@@ -227,6 +245,16 @@ async function createSession() {
       // Zip multiple files or folder structure
       document.getElementById("sendBtn").innerText = "Compacting files...";
       document.getElementById("sendBtn").disabled = true;
+
+      let zipName = "SharedBundle.zip";
+      if (hasStructure) {
+        const rootFolders = selectedFiles.map(f => (f.customPath || f.name).split('/')[0]);
+        const uniqueRoots = [...new Set(rootFolders)];
+        if (uniqueRoots.length === 1 && uniqueRoots[0]) {
+          zipName = uniqueRoots[0] + ".zip";
+        }
+      }
+
       try {
         const zip = new JSZip();
         selectedFiles.forEach(f => {
@@ -234,7 +262,7 @@ async function createSession() {
           zip.file(filePath, f);
         });
         const content = await zip.generateAsync({ type: "blob" });
-        senderFile = new File([content], "SharedBundle.zip", { type: "application/zip" });
+        senderFile = new File([content], zipName, { type: "application/zip" });
       } catch (err) {
         console.error("Zipping failed:", err);
         alert("Failed to package multiple files. Please try again or send a single file.");
@@ -628,6 +656,9 @@ function resetSender() {
   display.style.display = "none";
   document.getElementById("fileInput").value = "";
   document.getElementById("messageInput").value = "";
+
+  const listContainer = document.getElementById("fileListContainer");
+  if (listContainer) listContainer.style.display = "none";
 
   document.getElementById("codeContainer").style.display = "none";
   document.getElementById("sendAnotherBtn").style.display = "none";
