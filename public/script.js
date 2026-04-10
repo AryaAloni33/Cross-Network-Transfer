@@ -117,19 +117,89 @@ document.getElementById("fileInput").addEventListener("change", function (e) {
     e.dataTransfer.dropEffect = "copy";
   });
 
-  dropZone.addEventListener("drop", (e) => {
+  dropZone.addEventListener("drop", async (e) => {
     e.preventDefault();
     dragCounter = 0;
     dropZone.classList.remove("drag-over");
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFiles(files);
+
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      const allFiles = [];
+      const promises = [];
+      for (let i = 0; i < e.dataTransfer.items.length; i++) {
+        const item = e.dataTransfer.items[i];
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry) {
+            promises.push(traverseFileTree(entry, '', allFiles));
+          } else {
+            const file = item.getAsFile();
+            if (file) allFiles.push(file);
+          }
+        }
+      }
+      try {
+        await Promise.all(promises);
+        if (allFiles.length > 0) {
+          handleFiles(allFiles);
+        } else {
+          dropRejected();
+        }
+      } catch (err) {
+        console.error("Folder reading error:", err);
+        dropRejected();
+      }
     } else {
-      dropZone.classList.add("drop-rejected");
-      setTimeout(() => dropZone.classList.remove("drop-rejected"), 800);
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        handleFiles(files);
+      } else {
+        dropRejected();
+      }
     }
   });
+
+  function dropRejected() {
+    dropZone.classList.add("drop-rejected");
+    setTimeout(() => dropZone.classList.remove("drop-rejected"), 800);
+  }
 })();
+
+function traverseFileTree(item, path, filesArray) {
+  return new Promise((resolve, reject) => {
+    if (item.isFile) {
+      item.file(file => {
+        file.customPath = path + file.name;
+        filesArray.push(file);
+        resolve();
+      }, reject);
+    } else if (item.isDirectory) {
+      const dirReader = item.createReader();
+      const entries = [];
+      const readEntries = () => {
+        dirReader.readEntries(async (results) => {
+          if (!results.length) {
+            const promises = [];
+            for (let i = 0; i < entries.length; i++) {
+              promises.push(traverseFileTree(entries[i], path + item.name + "/", filesArray));
+            }
+            try {
+              await Promise.all(promises);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          } else {
+            entries.push(...results);
+            readEntries();
+          }
+        }, reject);
+      };
+      readEntries();
+    } else {
+      resolve();
+    }
+  });
+}
 
 // Uppercase + no-space enforcer on code input
 document.getElementById("joinCode").addEventListener("input", function () {
@@ -150,15 +220,19 @@ async function createSession() {
   } else {
     if (!selectedFiles || selectedFiles.length === 0) return alert("Please select a file to share!");
 
-    if (selectedFiles.length === 1) {
+    const hasStructure = selectedFiles.some(f => f.customPath && f.customPath.includes('/'));
+    if (selectedFiles.length === 1 && !hasStructure) {
       senderFile = selectedFiles[0];
     } else {
-      // Zip multiple files
+      // Zip multiple files or folder structure
       document.getElementById("sendBtn").innerText = "Compacting files...";
       document.getElementById("sendBtn").disabled = true;
       try {
         const zip = new JSZip();
-        selectedFiles.forEach(f => zip.file(f.name, f));
+        selectedFiles.forEach(f => {
+          const filePath = f.customPath || f.name;
+          zip.file(filePath, f);
+        });
         const content = await zip.generateAsync({ type: "blob" });
         senderFile = new File([content], "SharedBundle.zip", { type: "application/zip" });
       } catch (err) {
