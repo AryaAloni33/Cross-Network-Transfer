@@ -14,6 +14,7 @@ let receivedBytes = 0;
 let sessionCode = "";
 let sendLoopActive = false;
 let currentMode = "direct"; // "direct" | "broadcast"
+let cryptoManager = null;
 
 // ── URL auto-join (QR code deep link) ────────────────────────────────────────
 window.addEventListener("load", () => {
@@ -426,60 +427,135 @@ function escapeHTML(str) {
   );
 }
 
+// ── Crypto Manager ──────────────────────────────────────────────────────────
+class CryptoManager {
+  constructor(code) {
+    this.code = code;
+    this.key = null;
+    this.salt = new TextEncoder().encode("Cross-Network-Transfer-Salt-2024"); // Constant salt for simplicity
+  }
+
+  async init() {
+    const encoder = new TextEncoder();
+    const passwordKey = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(this.code),
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"]
+    );
+
+    this.key = await crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: this.salt,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      passwordKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  async encrypt(data) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv },
+      this.key,
+      data
+    );
+    
+    // Combine IV and encrypted data: [IV (12 bytes)][Encrypted Data]
+    const combined = new Uint8Array(iv.length + encrypted.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encrypted), iv.length);
+    return combined.buffer;
+  }
+
+  async decrypt(combinedBuffer) {
+    const combined = new Uint8Array(combinedBuffer);
+    const iv = combined.slice(0, 12);
+    const data = combined.slice(12);
+
+    return await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv },
+      this.key,
+      data
+    );
+  }
+}
+
 // ── SENDER: start broadcast ──────────────────────────────────────────────────
-function startBroadcast() {
+async function startBroadcast() {
   if (sendLoopActive) return;
   sendLoopActive = true;
   document.getElementById("startBroadcastBtn").style.display = "none";
 
+  // Initialize encryption
+  cryptoManager = new CryptoManager(sessionCode);
+  await cryptoManager.init();
+
   socket.emit("start-broadcast", sessionCode);
 
-  document.getElementById("sendStatus").innerText = "Broadcasting file to all receivers…";
-  document.getElementById("sendStatus").style.color = "#2ea043";
+  document.getElementById("sendStatus").innerHTML = 
+    `<span style="color:var(--success); display:flex; align-items:center; justify-content:center; gap:5px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      Encrypted Broadcast in progress...
+    </span>`;
+
+  // Encrypt Metadata
+  const meta = { name: senderFile.name, size: senderFile.size, type: senderFile.type };
+  const encryptedMeta = await cryptoManager.encrypt(new TextEncoder().encode(JSON.stringify(meta)));
 
   socket.emit("file-meta", {
     code: sessionCode,
-    meta: { name: senderFile.name, size: senderFile.size, type: senderFile.type },
+    meta: encryptedMeta,
   });
 
   const chunkSize = 256 * 1024;
   let offset = 0;
   const reader = new FileReader();
 
-  function sendNextChunk() {
+  async function sendNextChunk() {
     if (offset >= senderFile.size) {
       const statusEl = document.getElementById("sendStatus");
-      statusEl.innerText = "Broadcast Complete! ✓";
+      statusEl.innerHTML = "Broadcast Complete! ✓";
       document.getElementById("sendBtn").style.display = "none";
       document.getElementById("sendAnotherBtn").style.display = "block";
       sendLoopActive = false;
-      // Auto-refresh for next session
       setTimeout(() => window.location.reload(), 5000);
       return;
     }
 
-    reader.onload = (e) => {
-      socket.emit(
-        "file-raw",
-        { code: sessionCode, buffer: e.target.result },
-        () => {
-          offset += chunkSize;
-          sendNextChunk();
-        },
-      );
-    };
-
     const slice = senderFile.slice(offset, offset + chunkSize);
-    reader.readAsArrayBuffer(slice);
+    const arrayBuffer = await slice.arrayBuffer();
+    
+    // Encrypt the chunk
+    const encryptedChunk = await cryptoManager.encrypt(arrayBuffer);
+
+    socket.emit(
+      "file-raw",
+      { code: sessionCode, buffer: encryptedChunk },
+      () => {
+        offset += chunkSize;
+        sendNextChunk();
+      },
+    );
   }
 
   sendNextChunk();
 }
 
 // ── RECEIVER: join session ────────────────────────────────────────────────────
-function joinSession() {
+async function joinSession() {
   const code = document.getElementById("joinCode").value.trim().toUpperCase();
   if (!code) return alert("Please enter the share code!");
+
+  // Initialize crypto for receiver
+  cryptoManager = new CryptoManager(code);
+  await cryptoManager.init();
 
   // Prevent the sender from joining their own session
   if (sessionCode && code === sessionCode) {
@@ -539,42 +615,63 @@ socket.on("room-closed", () => {
 });
 
 // ── RECEIVER: file data ───────────────────────────────────────────────────────
-socket.on("file-meta", (meta) => {
-  receiverFileName = meta.name;
-  receiverFileSize = meta.size;
-  receiverFileType = meta.type || "";
-  receivedBuffers = [];
-  receivedBytes = 0;
+socket.on("file-meta", async (encryptedMeta) => {
+  try {
+    const decryptedMetaBuffer = await cryptoManager.decrypt(encryptedMeta);
+    const meta = JSON.parse(new TextDecoder().decode(decryptedMetaBuffer));
+    
+    receiverFileName = meta.name;
+    receiverFileSize = meta.size;
+    receiverFileType = meta.type || "";
+    receivedBuffers = [];
+    receivedBytes = 0;
 
-  document.getElementById("incomingFileName").innerText = receiverFileName;
-  document.getElementById("incomingFileSize").innerText = formatBytes(receiverFileSize);
-  document.getElementById("incomingFileInfo").style.display = "block";
-  document.getElementById("receiveBtn").innerText = "Starting Transfer…";
-  document.getElementById("waitingRoom").style.display = "none";
+    document.getElementById("incomingFileName").innerText = receiverFileName;
+    document.getElementById("incomingFileSize").innerText = formatBytes(receiverFileSize);
+    document.getElementById("incomingFileInfo").style.display = "block";
+    document.getElementById("receiveBtn").innerHTML = 
+      `<span style="display:flex; align-items:center; justify-content:center; gap:5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Decrypting & Receiving...
+      </span>`;
+    document.getElementById("waitingRoom").style.display = "none";
 
-  const link = document.getElementById("downloadLink");
-  link.download = receiverFileName;
+    const link = document.getElementById("downloadLink");
+    link.download = receiverFileName;
 
-  if (receiverFileSize === 0) finalizeTransfer();
+    if (receiverFileSize === 0) finalizeTransfer();
+  } catch (err) {
+    console.error("Decryption failed:", err);
+    alert("Decryption failed! The share code might be incorrect or the data was corrupted.");
+  }
 });
 
-socket.on("file-raw", (buffer, ack) => {
-  receivedBuffers.push(buffer);
+socket.on("file-raw", async (encryptedBuffer, ack) => {
+  try {
+    const decryptedBuffer = await cryptoManager.decrypt(encryptedBuffer);
+    receivedBuffers.push(decryptedBuffer);
 
-  const chunkLength = buffer.byteLength !== undefined ? buffer.byteLength : new Blob([buffer]).size;
-  receivedBytes += chunkLength;
+    const chunkLength = decryptedBuffer.byteLength;
+    receivedBytes += chunkLength;
 
-  let pct = receiverFileSize > 0 ? Math.round((receivedBytes / receiverFileSize) * 100) : 100;
-  if (pct > 100) pct = 100;
+    let pct = receiverFileSize > 0 ? Math.round((receivedBytes / receiverFileSize) * 100) : 100;
+    if (pct > 100) pct = 100;
 
-  document.getElementById("receiveBtn").innerText = `Downloading… ${pct}%`;
+    document.getElementById("receiveBtn").innerHTML = 
+      `<span style="display:flex; align-items:center; justify-content:center; gap:5px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Decrypting… ${pct}%
+      </span>`;
 
-  const bar = document.getElementById("progressBarInner");
-  if (bar) bar.style.width = `${pct}%`;
+    const bar = document.getElementById("progressBarInner");
+    if (bar) bar.style.width = `${pct}%`;
 
-  if (ack) ack();
+    if (ack) ack();
 
-  if (receivedBytes >= receiverFileSize) finalizeTransfer();
+    if (receivedBytes >= receiverFileSize) finalizeTransfer();
+  } catch (err) {
+    console.error("Chunk decryption error:", err);
+  }
 });
 
 function finalizeTransfer() {
